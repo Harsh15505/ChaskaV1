@@ -178,26 +178,29 @@ export default function BillingScreen({
         )}
 
         {/* Generate Bill / Clear Table */}
-        {selectedTable && allItems.length > 0 && (
+        {selectedTable && (
           <div className="space-y-3">
-            {!generated ? (
+            {allItems.length > 0 && !generated && (
               <button
                 onClick={handleGenerateBill}
                 className="w-full py-4 bg-primary text-primary-foreground rounded-2xl font-extrabold text-base active:scale-95 transition-transform shadow-lg"
               >
                 Generate Bill
               </button>
-            ) : (
+            )}
+            {(generated || allItems.length === 0) && (
               <div className="space-y-3">
-                <div className="flex items-center gap-3 bg-secondary/20 border border-secondary/30 rounded-2xl px-4 py-4">
-                  <CheckCircle2 className="w-6 h-6 text-secondary shrink-0" />
-                  <div>
-                    <p className="font-bold text-foreground">Bill Generated</p>
-                    <p className="text-sm text-muted-foreground">
-                      Total: ₹{total} for Table {selectedTable}
-                    </p>
+                {generated && allItems.length > 0 && (
+                  <div className="flex items-center gap-3 bg-secondary/20 border border-secondary/30 rounded-2xl px-4 py-4">
+                    <CheckCircle2 className="w-6 h-6 text-secondary shrink-0" />
+                    <div>
+                      <p className="font-bold text-foreground">Bill Generated</p>
+                      <p className="text-sm text-muted-foreground">
+                        Total: ₹{total} for Table {selectedTable}
+                      </p>
+                    </div>
                   </div>
-                </div>
+                )}
                 <button
                   onClick={handleClearTable}
                   className="w-full py-4 bg-secondary text-secondary-foreground rounded-2xl font-extrabold text-base active:scale-95 transition-transform shadow-lg"
