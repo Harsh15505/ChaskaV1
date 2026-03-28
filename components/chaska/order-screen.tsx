@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CartItem, MENU_ITEMS, MenuItem, OrderItem } from "@/lib/chaska-data";
+import { CartItem, MENU_ITEMS, MenuItem, OrderItem, TableStatus } from "@/lib/chaska-data";
 import { useTableOrder } from "@/hooks/useOrders";
-import { createOrder, updateOrderItems } from "@/services/orders";
+import { createOrder, updateOrderItems, requestBill } from "@/services/orders";
 import { cn } from "@/lib/utils";
 import { ArrowLeft, ChevronRight, Minus, Plus, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
@@ -11,6 +11,7 @@ import { toast } from "sonner";
 interface OrderScreenProps {
   tableId: string;         // Firestore doc id, e.g. "table_1"
   tableNumber: number;
+  tableStatus: TableStatus;
   existingOrderId: string | null;
   onBack: () => void;
 }
@@ -49,6 +50,7 @@ function orderItemsToCart(items: OrderItem[]): CartItem[] {
 export default function OrderScreen({
   tableId,
   tableNumber,
+  tableStatus,
   existingOrderId,
   onBack,
 }: OrderScreenProps) {
@@ -103,8 +105,8 @@ export default function OrderScreen({
     0
   );
 
-  // Can the waiter still edit? Locked once kitchen marks served.
-  const isLocked = order?.status === "served";
+  // Can the waiter still edit? Locked once table moves to 'billing' state
+  const isLocked = tableStatus === "billing";
 
   const handleSendToKitchen = async () => {
     if (cart.length === 0 || sending) return;
@@ -123,6 +125,21 @@ export default function OrderScreen({
     } catch (err) {
       console.error(err);
       toast.error("Failed to send order. Check your connection.");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleRequestBill = async () => {
+    if (sending) return;
+    setSending(true);
+    try {
+      await requestBill(tableId);
+      toast.success("Bill requested!");
+      onBack();
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to request bill. Check your connection.");
     } finally {
       setSending(false);
     }
@@ -150,7 +167,7 @@ export default function OrderScreen({
           </div>
           {isLocked && (
             <span className="text-xs font-bold bg-status-billing/20 text-status-billing px-3 py-1 rounded-full">
-              Kitchen Done
+              Bill Requested
             </span>
           )}
           {totalItems > 0 && !isLocked && (
@@ -185,7 +202,7 @@ export default function OrderScreen({
       </div>
 
       {/* Menu Items Grid */}
-      <div className="flex-1 px-4 py-3 pb-48">
+      <div className="flex-1 px-4 py-3 pb-56">
         {orderLoading ? (
           <div className="grid grid-cols-2 gap-3">
             {Array.from({ length: 4 }).map((_, i) => (
@@ -252,36 +269,58 @@ export default function OrderScreen({
       </div>
 
       {/* Bottom Cart Section */}
-      {cart.length > 0 && !isLocked && (
-        <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border px-4 pt-3 pb-6 shadow-2xl">
-          {/* Cart items summary */}
-          <div className="mb-3 max-h-28 overflow-y-auto space-y-1.5">
-            {cart.map((c) => (
-              <div key={c.item.id} className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">
-                  <span className="text-primary font-bold">{c.quantity}x</span>{" "}
-                  {c.item.name}
-                </span>
-                <span className="text-sm font-semibold text-foreground">
-                  ₹{c.item.price * c.quantity}
+      {(!isLocked && (cart.length > 0 || order)) && (
+        <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border px-4 pt-3 pb-6 shadow-2xl space-y-3">
+          {/* Cart items summary only if cart has items */}
+          {cart.length > 0 && (
+            <>
+              <div className="max-h-24 overflow-y-auto space-y-1.5">
+                {cart.map((c) => (
+                  <div key={c.item.id} className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">
+                      <span className="text-primary font-bold">{c.quantity}x</span>{" "}
+                      {c.item.name}
+                    </span>
+                    <span className="text-sm font-semibold text-foreground">
+                      ₹{c.item.price * c.quantity}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground text-sm">Total</span>
+                <span className="text-foreground font-extrabold text-xl">
+                  ₹{totalPrice}
                 </span>
               </div>
-            ))}
+            </>
+          )}
+
+          <div className="flex gap-3">
+            {order && (
+              <button
+                onClick={handleRequestBill}
+                disabled={sending}
+                className="flex-[1] py-4 bg-status-billing border-2 border-status-billing text-status-billing-foreground rounded-2xl font-extrabold text-base flex items-center justify-center active:scale-95 transition-transform shadow-lg disabled:opacity-60"
+                style={{ color: "white" }}
+              >
+                Request Bill
+              </button>
+            )}
+            {cart.length > 0 && (
+              <button
+                onClick={handleSendToKitchen}
+                disabled={sending}
+                className={cn(
+                  "py-4 bg-secondary text-secondary-foreground rounded-2xl font-extrabold text-base flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-lg disabled:opacity-60",
+                  order ? "flex-[1.5]" : "flex-1"
+                )}
+              >
+                {sending ? "Sending…" : "Send to Kitchen"}
+                {!sending && <ChevronRight className="w-5 h-5" />}
+              </button>
+            )}
           </div>
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-muted-foreground text-sm">Total</span>
-            <span className="text-foreground font-extrabold text-xl">
-              ₹{totalPrice}
-            </span>
-          </div>
-          <button
-            onClick={handleSendToKitchen}
-            disabled={sending}
-            className="w-full py-4 bg-secondary text-secondary-foreground rounded-2xl font-extrabold text-base flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-lg disabled:opacity-60"
-          >
-            {sending ? "Sending…" : "Send to Kitchen"}
-            {!sending && <ChevronRight className="w-5 h-5" />}
-          </button>
         </div>
       )}
     </div>

@@ -63,6 +63,7 @@ export default function Page() {
       <OrderScreen
         tableId={selectedTableId}
         tableNumber={table?.tableNumber ?? 0}
+        tableStatus={table?.status ?? "free"}
         existingOrderId={table?.currentOrderId ?? null}
         onBack={() => setSelectedTableId(null)}
       />

@@ -130,13 +130,22 @@ export async function updateOrderStatus(
 
 /**
  * Kitchen marks an order done (served).
- * Sets order → "served" and table → "billing".
+ * Sets order → "served" and leaves table active for more rounds.
  */
 export async function markOrderServed(
   orderId: string,
-  tableId: string
+  tableId: string // kept to avoid changing other components' props
 ): Promise<void> {
   await updateOrderStatus(orderId, "served");
+}
+
+/**
+ * Waiter requests the bill after all rounds are done.
+ * Sets table → "billing".
+ */
+export async function requestBill(
+  tableId: string
+): Promise<void> {
   await updateTableStatus(tableId, "billing" as TableStatus);
 }
 
