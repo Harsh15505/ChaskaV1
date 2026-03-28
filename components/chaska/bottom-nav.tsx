@@ -1,38 +1,65 @@
 "use client";
 
+import { AppRole } from "@/lib/chaska-data";
 import { cn } from "@/lib/utils";
-import { LayoutGrid, ChefHat, Receipt } from "lucide-react";
+import { LayoutGrid, ChefHat, Receipt, RefreshCcw } from "lucide-react";
 
 export type AppView = "tables" | "kitchen" | "billing";
 
 interface BottomNavProps {
   activeView: AppView;
+  role: AppRole;
   onNavigate: (view: AppView) => void;
+  onChangeRole: () => void;
   kitchenOrderCount: number;
 }
 
-const NAV_ITEMS: {
+const ALL_NAV_ITEMS: {
   id: AppView;
   label: string;
   Icon: React.ElementType;
+  roles: AppRole[]; // which roles can see this tab
 }[] = [
-  { id: "tables", label: "Tables", Icon: LayoutGrid },
-  { id: "kitchen", label: "Kitchen", Icon: ChefHat },
-  { id: "billing", label: "Billing", Icon: Receipt },
+  { id: "tables",  label: "Tables",  Icon: LayoutGrid, roles: ["waiter", "billing"] },
+  { id: "kitchen", label: "Kitchen", Icon: ChefHat,    roles: ["kitchen"] },
+  { id: "billing", label: "Billing", Icon: Receipt,    roles: ["billing"] },
 ];
 
 export default function BottomNav({
   activeView,
+  role,
   onNavigate,
+  onChangeRole,
   kitchenOrderCount,
 }: BottomNavProps) {
+  const visibleItems = ALL_NAV_ITEMS.filter((item) =>
+    item.roles.includes(role)
+  );
+
   return (
     <nav
       className="fixed bottom-0 left-0 right-0 z-20 bg-card border-t border-border shadow-2xl"
       aria-label="Main navigation"
     >
       <div className="flex">
-        {NAV_ITEMS.map(({ id, label, Icon }) => {
+        {/* Role change button — always on the left */}
+        <button
+          onClick={onChangeRole}
+          className="flex flex-col items-center justify-center gap-1 py-3 px-4 text-muted-foreground active:scale-95 transition-all duration-150"
+          aria-label="Change role"
+          title="Change role"
+        >
+          <RefreshCcw className="w-5 h-5" />
+          <span className="text-[10px] font-bold uppercase tracking-wide capitalize">
+            {role}
+          </span>
+        </button>
+
+        {/* Divider */}
+        <div className="w-px bg-border my-2" />
+
+        {/* Visible tabs */}
+        {visibleItems.map(({ id, label, Icon }) => {
           const isActive = activeView === id;
           return (
             <button

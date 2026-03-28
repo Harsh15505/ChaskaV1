@@ -1,11 +1,12 @@
 "use client";
 
-import { TableData, TableStatus } from "@/lib/chaska-data";
+import { FirestoreTable, TableStatus } from "@/lib/chaska-data";
 import { cn } from "@/lib/utils";
 
 interface TableDashboardProps {
-  tables: TableData[];
-  onSelectTable: (tableId: number) => void;
+  tables: FirestoreTable[];
+  loading: boolean;
+  onSelectTable: (tableId: string) => void;
 }
 
 const STATUS_CONFIG: Record<
@@ -34,6 +35,7 @@ const STATUS_CONFIG: Record<
 
 export default function TableDashboard({
   tables,
+  loading,
   onSelectTable,
 }: TableDashboardProps) {
   const freeTables = tables.filter((t) => t.status === "free").length;
@@ -72,43 +74,59 @@ export default function TableDashboard({
 
       {/* Table Grid */}
       <main className="flex-1 p-4">
-        <div className="grid grid-cols-3 gap-3">
-          {tables.map((table) => {
-            const config = STATUS_CONFIG[table.status];
-            return (
-              <button
-                key={table.id}
-                onClick={() => onSelectTable(table.id)}
-                className={cn(
-                  "relative flex flex-col items-center justify-center",
-                  "bg-card border-2 rounded-2xl py-6 gap-2",
-                  "active:scale-95 transition-all duration-150",
-                  "shadow-md",
-                  config.card
-                )}
-                aria-label={`Table ${table.id} — ${config.label}`}
-              >
-                <span className="text-3xl font-extrabold text-foreground">
-                  {table.id}
-                </span>
-                <span
+        {loading ? (
+          <div className="grid grid-cols-3 gap-3">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div
+                key={i}
+                className="bg-muted animate-pulse rounded-2xl py-6 h-24"
+              />
+            ))}
+          </div>
+        ) : tables.length === 0 ? (
+          <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3 text-muted-foreground">
+            <p className="font-semibold text-lg">No tables found</p>
+            <p className="text-sm">Tables are being set up…</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-3">
+            {tables.map((table) => {
+              const config = STATUS_CONFIG[table.status];
+              return (
+                <button
+                  key={table.id}
+                  onClick={() => onSelectTable(table.id)}
                   className={cn(
-                    "text-[11px] font-semibold uppercase tracking-wider",
-                    config.text
+                    "relative flex flex-col items-center justify-center",
+                    "bg-card border-2 rounded-2xl py-6 gap-2",
+                    "active:scale-95 transition-all duration-150",
+                    "shadow-md",
+                    config.card
                   )}
+                  aria-label={`Table ${table.tableNumber} — ${config.label}`}
                 >
-                  {config.label}
-                </span>
-                <span
-                  className={cn(
-                    "absolute top-2.5 right-2.5 w-2.5 h-2.5 rounded-full",
-                    config.dot
-                  )}
-                />
-              </button>
-            );
-          })}
-        </div>
+                  <span className="text-3xl font-extrabold text-foreground">
+                    {table.tableNumber}
+                  </span>
+                  <span
+                    className={cn(
+                      "text-[11px] font-semibold uppercase tracking-wider",
+                      config.text
+                    )}
+                  >
+                    {config.label}
+                  </span>
+                  <span
+                    className={cn(
+                      "absolute top-2.5 right-2.5 w-2.5 h-2.5 rounded-full",
+                      config.dot
+                    )}
+                  />
+                </button>
+              );
+            })}
+          </div>
+        )}
       </main>
     </div>
   );

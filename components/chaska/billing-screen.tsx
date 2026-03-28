@@ -1,66 +1,87 @@
 "use client";
 
 import { useState } from "react";
-import { CartItem, KitchenOrder, TableData } from "@/lib/chaska-data";
+import { FirestoreOrder, FirestoreTable } from "@/lib/chaska-data";
+import { clearTable, generateReceipt, ReceiptData } from "@/services/orders";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, Receipt, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Receipt, CheckCircle2, Minus, Plus, Trash2 } from "lucide-react";
+import { updateOrderItems } from "@/services/orders";
+import { toast } from "sonner";
 
 interface BillingScreenProps {
-  tables: TableData[];
-  orders: KitchenOrder[];
-  tableOrders: Record<number, CartItem[]>;
+  tables: FirestoreTable[];
+  orders: FirestoreOrder[];
+  loading: boolean;
   onBack: () => void;
-  onClearTable: (tableId: number) => void;
 }
 
 export default function BillingScreen({
   tables,
   orders,
-  tableOrders,
+  loading,
   onBack,
-  onClearTable,
 }: BillingScreenProps) {
-  const [selectedTable, setSelectedTable] = useState<number | null>(null);
-  const [generated, setGenerated] = useState(false);
+  const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
+  const [receipt, setReceipt] = useState<ReceiptData | null>(null);
+  const [clearing, setClearing] = useState(false);
 
   const activeTables = tables.filter(
     (t) => t.status === "active" || t.status === "billing"
   );
 
-  const selectedItems: CartItem[] = selectedTable
-    ? tableOrders[selectedTable] ?? []
-    : [];
+  // Find the active order for the selected table
+  const selectedOrder = selectedTableId
+    ? orders.find((o) => o.tableId === selectedTableId) ?? null
+    : null;
 
-  const selectedKitchenOrders = selectedTable
-    ? orders.filter((o) => o.tableId === selectedTable)
-    : [];
+  const selectedTable = selectedTableId
+    ? tables.find((t) => t.id === selectedTableId) ?? null
+    : null;
 
-  const allItems: CartItem[] = [...selectedItems];
-  selectedKitchenOrders.forEach((ko) => {
-    ko.items.forEach((ki) => {
-      const existing = allItems.find((a) => a.item.id === ki.item.id);
-      if (existing) {
-        existing.quantity += ki.quantity;
-      } else {
-        allItems.push({ ...ki });
-      }
-    });
-  });
+  const total = selectedOrder
+    ? selectedOrder.items.reduce((sum, i) => sum + i.price * i.quantity, 0)
+    : 0;
 
-  const total = allItems.reduce(
-    (sum, c) => sum + c.item.price * c.quantity,
-    0
-  );
+  // ── Edit items directly on the billing screen ─────────────────────────────
 
-  const handleGenerateBill = () => {
-    setGenerated(true);
+  const handleChangeQty = async (itemId: string, delta: number) => {
+    if (!selectedOrder) return;
+    const updated = selectedOrder.items
+      .map((i) =>
+        i.id === itemId ? { ...i, quantity: i.quantity + delta } : i
+      )
+      .filter((i) => i.quantity > 0); // remove if qty reaches 0
+    try {
+      await updateOrderItems(selectedOrder.id, updated);
+    } catch {
+      toast.error("Failed to update item. Try again.");
+    }
   };
 
-  const handleClearTable = () => {
-    if (!selectedTable) return;
-    onClearTable(selectedTable);
-    setSelectedTable(null);
-    setGenerated(false);
+  // ── Generate bill ─────────────────────────────────────────────────────────
+
+  const handleGenerateBill = () => {
+    if (!selectedOrder || !selectedTable) return;
+    const data = generateReceipt(selectedOrder, selectedTable.tableNumber);
+    setReceipt(data);
+  };
+
+  // ── Clear table (mark billed) ─────────────────────────────────────────────
+
+  const handleClearTable = async () => {
+    if (!selectedOrder || !selectedTableId || clearing) return;
+    setClearing(true);
+    try {
+      await clearTable(selectedOrder.id, selectedTableId);
+      toast.success(`Table ${selectedTable?.tableNumber} cleared!`);
+      setSelectedTableId(null);
+      setReceipt(null);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to clear table. Try again.");
+    } finally {
+      setClearing(false);
+    }
   };
 
   return (
@@ -92,78 +113,104 @@ export default function BillingScreen({
           <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider mb-2">
             Select Table
           </p>
-          <div className="grid grid-cols-4 gap-2">
-            {activeTables.map((table) => (
-              <button
-                key={table.id}
-                onClick={() => {
-                  setSelectedTable(table.id);
-                  setGenerated(false);
-                }}
-                className={cn(
-                  "py-4 rounded-xl font-extrabold text-lg transition-all active:scale-90",
-                  selectedTable === table.id
-                    ? "bg-primary text-primary-foreground shadow-lg"
-                    : "bg-card border border-border text-foreground"
-                )}
-                aria-label={`Select table ${table.id}`}
-              >
-                {table.id}
-              </button>
-            ))}
-            {activeTables.length === 0 && (
-              <div className="col-span-4 py-6 text-center text-muted-foreground text-sm">
-                No active tables
-              </div>
-            )}
-          </div>
+          {loading ? (
+            <div className="grid grid-cols-4 gap-2">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="bg-muted animate-pulse rounded-xl h-16" />
+              ))}
+            </div>
+          ) : (
+            <div className="grid grid-cols-4 gap-2">
+              {activeTables.map((table) => (
+                <button
+                  key={table.id}
+                  onClick={() => {
+                    setSelectedTableId(table.id);
+                    setReceipt(null);
+                  }}
+                  className={cn(
+                    "py-4 rounded-xl font-extrabold text-lg transition-all active:scale-90",
+                    selectedTableId === table.id
+                      ? "bg-primary text-primary-foreground shadow-lg"
+                      : "bg-card border border-border text-foreground"
+                  )}
+                  aria-label={`Select table ${table.tableNumber}`}
+                >
+                  {table.tableNumber}
+                </button>
+              ))}
+              {activeTables.length === 0 && (
+                <div className="col-span-4 py-6 text-center text-muted-foreground text-sm">
+                  No active tables
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Bill Details */}
-        {selectedTable && (
+        {selectedOrder && (
           <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-md">
             {/* Bill header */}
             <div className="bg-primary/10 px-4 py-3 flex items-center gap-2">
               <Receipt className="w-4 h-4 text-primary" />
               <span className="font-extrabold text-foreground">
-                Table {selectedTable} — Bill
+                Table {selectedTable?.tableNumber} — Bill
+              </span>
+              <span className="ml-auto text-xs font-semibold text-muted-foreground">
+                Tap − / + to edit
               </span>
             </div>
 
-            {allItems.length === 0 ? (
+            {selectedOrder.items.length === 0 ? (
               <div className="px-4 py-6 text-center text-muted-foreground text-sm">
                 No items ordered for this table
               </div>
             ) : (
-              <div className="px-4 py-3 space-y-2">
+              <div className="px-4 py-3 space-y-3">
                 {/* Column headers */}
                 <div className="flex items-center text-xs text-muted-foreground font-semibold pb-1 border-b border-border">
                   <span className="flex-1">Item</span>
-                  <span className="w-10 text-center">Qty</span>
-                  <span className="w-16 text-right">Price</span>
+                  <span className="w-24 text-center">Qty</span>
                   <span className="w-16 text-right">Amount</span>
                 </div>
-                {allItems.map((c) => (
-                  <div
-                    key={c.item.id}
-                    className="flex items-center text-sm"
-                  >
-                    <span className="flex-1 text-foreground leading-tight pr-2">
-                      {c.item.name}
+
+                {selectedOrder.items.map((item) => (
+                  <div key={item.id} className="flex items-center gap-2">
+                    <span className="flex-1 text-foreground text-sm leading-tight pr-1">
+                      {item.name}
                     </span>
-                    <span className="w-10 text-center text-muted-foreground">
-                      {c.quantity}
-                    </span>
-                    <span className="w-16 text-right text-muted-foreground">
-                      ₹{c.item.price}
-                    </span>
-                    <span className="w-16 text-right font-semibold text-foreground">
-                      ₹{c.item.price * c.quantity}
+                    {/* Inline quantity editor */}
+                    <div className="flex items-center gap-1 bg-muted rounded-lg px-1 py-0.5">
+                      <button
+                        onClick={() => handleChangeQty(item.id, -1)}
+                        className="w-7 h-7 flex items-center justify-center text-primary active:scale-90 transition-transform"
+                        aria-label={`Remove one ${item.name}`}
+                      >
+                        {item.quantity === 1 ? (
+                          <Trash2 className="w-3.5 h-3.5" />
+                        ) : (
+                          <Minus className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                      <span className="w-5 text-center font-extrabold text-sm text-foreground">
+                        {item.quantity}
+                      </span>
+                      <button
+                        onClick={() => handleChangeQty(item.id, 1)}
+                        className="w-7 h-7 flex items-center justify-center text-primary active:scale-90 transition-transform"
+                        aria-label={`Add one more ${item.name}`}
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <span className="w-16 text-right font-semibold text-foreground text-sm">
+                      ₹{item.price * item.quantity}
                     </span>
                   </div>
                 ))}
 
-                {/* Divider + Total */}
+                {/* Total */}
                 <div className="border-t border-border pt-3 flex items-center justify-between">
                   <span className="text-muted-foreground text-sm font-semibold">
                     Total
@@ -177,10 +224,32 @@ export default function BillingScreen({
           </div>
         )}
 
-        {/* Generate Bill / Clear Table */}
-        {selectedTable && (
-          <div className="space-y-3">
-            {allItems.length > 0 && !generated && (
+        {/* No order yet for selected table */}
+        {selectedTableId && !selectedOrder && !loading && (
+          <div className="text-center text-muted-foreground text-sm py-4">
+            No active order for this table yet.
+          </div>
+        )}
+
+        {/* Receipt */}
+        {receipt && (
+          <div className="bg-secondary/10 border border-secondary/30 rounded-2xl px-4 py-4 space-y-2">
+            <div className="flex items-center gap-3">
+              <CheckCircle2 className="w-6 h-6 text-secondary shrink-0" />
+              <div>
+                <p className="font-bold text-foreground">Bill Ready</p>
+                <p className="text-sm text-muted-foreground">
+                  Table {receipt.tableNumber} — Total ₹{receipt.total}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Actions */}
+        {selectedOrder && (
+          <div className="space-y-3 pb-4">
+            {!receipt && selectedOrder.items.length > 0 && (
               <button
                 onClick={handleGenerateBill}
                 className="w-full py-4 bg-primary text-primary-foreground rounded-2xl font-extrabold text-base active:scale-95 transition-transform shadow-lg"
@@ -188,26 +257,16 @@ export default function BillingScreen({
                 Generate Bill
               </button>
             )}
-            {(generated || allItems.length === 0) && (
-              <div className="space-y-3">
-                {generated && allItems.length > 0 && (
-                  <div className="flex items-center gap-3 bg-secondary/20 border border-secondary/30 rounded-2xl px-4 py-4">
-                    <CheckCircle2 className="w-6 h-6 text-secondary shrink-0" />
-                    <div>
-                      <p className="font-bold text-foreground">Bill Generated</p>
-                      <p className="text-sm text-muted-foreground">
-                        Total: ₹{total} for Table {selectedTable}
-                      </p>
-                    </div>
-                  </div>
-                )}
-                <button
-                  onClick={handleClearTable}
-                  className="w-full py-4 bg-secondary text-secondary-foreground rounded-2xl font-extrabold text-base active:scale-95 transition-transform shadow-lg"
-                >
-                  Clear Table {selectedTable}
-                </button>
-              </div>
+            {(receipt || selectedOrder.items.length === 0) && (
+              <button
+                onClick={handleClearTable}
+                disabled={clearing}
+                className="w-full py-4 bg-secondary text-secondary-foreground rounded-2xl font-extrabold text-base active:scale-95 transition-transform shadow-lg disabled:opacity-60"
+              >
+                {clearing
+                  ? "Clearing…"
+                  : `Clear Table ${selectedTable?.tableNumber}`}
+              </button>
             )}
           </div>
         )}

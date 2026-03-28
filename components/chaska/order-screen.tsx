@@ -1,15 +1,18 @@
 "use client";
 
-import { useState } from "react";
-import { CartItem, KitchenOrder, MENU_ITEMS, MenuItem } from "@/lib/chaska-data";
+import { useEffect, useState } from "react";
+import { CartItem, MENU_ITEMS, MenuItem, OrderItem } from "@/lib/chaska-data";
+import { useTableOrder } from "@/hooks/useOrders";
+import { createOrder, updateOrderItems } from "@/services/orders";
 import { cn } from "@/lib/utils";
 import { ArrowLeft, ChevronRight, Minus, Plus, ShoppingBag } from "lucide-react";
+import { toast } from "sonner";
 
 interface OrderScreenProps {
-  tableId: number;
+  tableId: string;         // Firestore doc id, e.g. "table_1"
+  tableNumber: number;
+  existingOrderId: string | null;
   onBack: () => void;
-  onSendToKitchen: (order: KitchenOrder) => void;
-  existingCart?: CartItem[];
 }
 
 type Category = "chinese" | "punjabi";
@@ -19,22 +22,56 @@ const CATEGORY_TABS: { id: Category; label: string; icon: string }[] = [
   { id: "punjabi", label: "Punjabi", icon: "🍛" },
 ];
 
+/** Convert CartItem[] to OrderItem[] for Firestore */
+function cartToOrderItems(cart: CartItem[]): OrderItem[] {
+  return cart.map((c) => ({
+    id: c.item.id,
+    name: c.item.name,
+    price: c.item.price,
+    quantity: c.quantity,
+  }));
+}
+
+/** Convert OrderItem[] from Firestore back to CartItem[] for local state */
+function orderItemsToCart(items: OrderItem[]): CartItem[] {
+  return items.map((oi) => {
+    const menuItem: MenuItem = {
+      id: oi.id,
+      name: oi.name,
+      price: oi.price,
+      category:
+        MENU_ITEMS.find((m) => m.id === oi.id)?.category ?? "chinese",
+    };
+    return { item: menuItem, quantity: oi.quantity };
+  });
+}
+
 export default function OrderScreen({
   tableId,
+  tableNumber,
+  existingOrderId,
   onBack,
-  onSendToKitchen,
-  existingCart = [],
 }: OrderScreenProps) {
   const [activeCategory, setActiveCategory] = useState<Category>("chinese");
-  const [cart, setCart] = useState<CartItem[]>(existingCart);
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [sending, setSending] = useState(false);
+
+  // Listen to the current order for this table in real time
+  const { order, loading: orderLoading } = useTableOrder(tableId);
+
+  // Sync cart with Firestore order when it loads
+  useEffect(() => {
+    if (!orderLoading && order) {
+      setCart(orderItemsToCart(order.items));
+    }
+  }, [orderLoading, order]);
 
   const filteredItems = MENU_ITEMS.filter(
     (item) => item.category === activeCategory
   );
 
-  const getQuantity = (itemId: string) => {
-    return cart.find((c) => c.item.id === itemId)?.quantity ?? 0;
-  };
+  const getQuantity = (itemId: string) =>
+    cart.find((c) => c.item.id === itemId)?.quantity ?? 0;
 
   const addItem = (item: MenuItem) => {
     setCart((prev) => {
@@ -52,7 +89,8 @@ export default function OrderScreen({
     setCart((prev) => {
       const existing = prev.find((c) => c.item.id === itemId);
       if (!existing) return prev;
-      if (existing.quantity === 1) return prev.filter((c) => c.item.id !== itemId);
+      if (existing.quantity === 1)
+        return prev.filter((c) => c.item.id !== itemId);
       return prev.map((c) =>
         c.item.id === itemId ? { ...c, quantity: c.quantity - 1 } : c
       );
@@ -60,17 +98,34 @@ export default function OrderScreen({
   };
 
   const totalItems = cart.reduce((sum, c) => sum + c.quantity, 0);
-  const totalPrice = cart.reduce((sum, c) => sum + c.item.price * c.quantity, 0);
+  const totalPrice = cart.reduce(
+    (sum, c) => sum + c.item.price * c.quantity,
+    0
+  );
 
-  const handleSendToKitchen = () => {
-    if (cart.length === 0) return;
-    const order: KitchenOrder = {
-      id: `order-${Date.now()}`,
-      tableId,
-      items: cart,
-      timestamp: new Date(),
-    };
-    onSendToKitchen(order);
+  // Can the waiter still edit? Locked once kitchen marks served.
+  const isLocked = order?.status === "served";
+
+  const handleSendToKitchen = async () => {
+    if (cart.length === 0 || sending) return;
+    setSending(true);
+    try {
+      const items = cartToOrderItems(cart);
+      if (order) {
+        // Existing order — update items
+        await updateOrderItems(order.id, items);
+      } else {
+        // New order — create in Firestore
+        await createOrder(tableId, items);
+      }
+      toast.success("Order sent to kitchen!");
+      onBack();
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to send order. Check your connection.");
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -90,10 +145,15 @@ export default function OrderScreen({
               CHASKA
             </p>
             <h1 className="text-xl font-extrabold text-foreground leading-tight">
-              Table {tableId}
+              Table {tableNumber}
             </h1>
           </div>
-          {totalItems > 0 && (
+          {isLocked && (
+            <span className="text-xs font-bold bg-status-billing/20 text-status-billing px-3 py-1 rounded-full">
+              Kitchen Done
+            </span>
+          )}
+          {totalItems > 0 && !isLocked && (
             <div className="flex items-center gap-1.5 bg-primary/20 text-primary px-3 py-1.5 rounded-full">
               <ShoppingBag className="w-4 h-4" />
               <span className="text-sm font-bold">{totalItems}</span>
@@ -126,61 +186,73 @@ export default function OrderScreen({
 
       {/* Menu Items Grid */}
       <div className="flex-1 px-4 py-3 pb-48">
-        <div className="grid grid-cols-2 gap-3">
-          {filteredItems.map((item) => {
-            const qty = getQuantity(item.id);
-            return (
-              <div
-                key={item.id}
-                className={cn(
-                  "bg-card border-2 rounded-2xl p-4 flex flex-col gap-3 shadow-md transition-all",
-                  qty > 0 ? "border-primary/50" : "border-border"
-                )}
-              >
-                <div className="flex-1">
-                  <p className="font-bold text-foreground text-sm leading-tight text-balance">
-                    {item.name}
-                  </p>
-                  <p className="text-primary font-extrabold text-base mt-1">
-                    ₹{item.price}
-                  </p>
-                </div>
-                {qty === 0 ? (
-                  <button
-                    onClick={() => addItem(item)}
-                    className="w-full py-2.5 bg-primary text-primary-foreground rounded-xl font-bold text-sm active:scale-95 transition-transform"
-                  >
-                    Add
-                  </button>
-                ) : (
-                  <div className="flex items-center justify-between bg-primary/10 rounded-xl px-2 py-1">
-                    <button
-                      onClick={() => removeItem(item.id)}
-                      className="w-8 h-8 flex items-center justify-center rounded-lg text-primary active:scale-90 transition-transform"
-                      aria-label={`Remove one ${item.name}`}
-                    >
-                      <Minus className="w-4 h-4" />
-                    </button>
-                    <span className="text-primary font-extrabold text-lg">
-                      {qty}
-                    </span>
+        {orderLoading ? (
+          <div className="grid grid-cols-2 gap-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="bg-muted animate-pulse rounded-2xl h-28" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            {filteredItems.map((item) => {
+              const qty = getQuantity(item.id);
+              return (
+                <div
+                  key={item.id}
+                  className={cn(
+                    "bg-card border-2 rounded-2xl p-4 flex flex-col gap-3 shadow-md transition-all",
+                    qty > 0 ? "border-primary/50" : "border-border"
+                  )}
+                >
+                  <div className="flex-1">
+                    <p className="font-bold text-foreground text-sm leading-tight text-balance">
+                      {item.name}
+                    </p>
+                    <p className="text-primary font-extrabold text-base mt-1">
+                      ₹{item.price}
+                    </p>
+                  </div>
+                  {isLocked ? (
+                    <div className="py-2 text-center text-xs text-muted-foreground font-semibold">
+                      {qty > 0 ? `${qty} ordered` : "—"}
+                    </div>
+                  ) : qty === 0 ? (
                     <button
                       onClick={() => addItem(item)}
-                      className="w-8 h-8 flex items-center justify-center rounded-lg text-primary active:scale-90 transition-transform"
-                      aria-label={`Add one more ${item.name}`}
+                      className="w-full py-2.5 bg-primary text-primary-foreground rounded-xl font-bold text-sm active:scale-95 transition-transform"
                     >
-                      <Plus className="w-4 h-4" />
+                      Add
                     </button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+                  ) : (
+                    <div className="flex items-center justify-between bg-primary/10 rounded-xl px-2 py-1">
+                      <button
+                        onClick={() => removeItem(item.id)}
+                        className="w-8 h-8 flex items-center justify-center rounded-lg text-primary active:scale-90 transition-transform"
+                        aria-label={`Remove one ${item.name}`}
+                      >
+                        <Minus className="w-4 h-4" />
+                      </button>
+                      <span className="text-primary font-extrabold text-lg">
+                        {qty}
+                      </span>
+                      <button
+                        onClick={() => addItem(item)}
+                        className="w-8 h-8 flex items-center justify-center rounded-lg text-primary active:scale-90 transition-transform"
+                        aria-label={`Add one more ${item.name}`}
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Bottom Cart Section */}
-      {cart.length > 0 && (
+      {cart.length > 0 && !isLocked && (
         <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border px-4 pt-3 pb-6 shadow-2xl">
           {/* Cart items summary */}
           <div className="mb-3 max-h-28 overflow-y-auto space-y-1.5">
@@ -204,10 +276,11 @@ export default function OrderScreen({
           </div>
           <button
             onClick={handleSendToKitchen}
-            className="w-full py-4 bg-secondary text-secondary-foreground rounded-2xl font-extrabold text-base flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-lg"
+            disabled={sending}
+            className="w-full py-4 bg-secondary text-secondary-foreground rounded-2xl font-extrabold text-base flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-lg disabled:opacity-60"
           >
-            Send to Kitchen
-            <ChevronRight className="w-5 h-5" />
+            {sending ? "Sending…" : "Send to Kitchen"}
+            {!sending && <ChevronRight className="w-5 h-5" />}
           </button>
         </div>
       )}

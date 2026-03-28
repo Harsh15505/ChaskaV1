@@ -1,11 +1,14 @@
 "use client";
 
-import { KitchenOrder } from "@/lib/chaska-data";
+import { useState } from "react";
+import { FirestoreOrder } from "@/lib/chaska-data";
+import { markOrderServed } from "@/services/orders";
 import { Clock, ChefHat } from "lucide-react";
+import { toast } from "sonner";
 
 interface KitchenScreenProps {
-  orders: KitchenOrder[];
-  onMarkDone: (orderId: string) => void;
+  orders: FirestoreOrder[];
+  loading: boolean;
 }
 
 function timeAgo(date: Date): string {
@@ -24,10 +27,31 @@ function formatTime(date: Date): string {
   });
 }
 
-export default function KitchenScreen({
-  orders,
-  onMarkDone,
-}: KitchenScreenProps) {
+// Show only pending/preparing orders to kitchen
+function visibleOrders(orders: FirestoreOrder[]): FirestoreOrder[] {
+  return orders.filter(
+    (o) => o.status === "pending" || o.status === "preparing"
+  );
+}
+
+export default function KitchenScreen({ orders, loading }: KitchenScreenProps) {
+  const [marking, setMarking] = useState<string | null>(null);
+  const active = visibleOrders(orders);
+
+  const handleMarkDone = async (order: FirestoreOrder) => {
+    if (marking) return;
+    setMarking(order.id);
+    try {
+      await markOrderServed(order.id, order.tableId);
+      toast.success(`Table ${order.tableId.replace("table_", "")} marked done!`);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to update order. Try again.");
+    } finally {
+      setMarking(null);
+    }
+  };
+
   return (
     <div className="flex flex-col min-h-screen bg-background">
       {/* Header */}
@@ -44,16 +68,22 @@ export default function KitchenScreen({
               Kitchen View
             </h1>
           </div>
-          {orders.length > 0 && (
+          {active.length > 0 && (
             <div className="ml-auto bg-status-billing/20 text-status-billing px-3 py-1 rounded-full text-sm font-bold">
-              {orders.length} pending
+              {active.length} pending
             </div>
           )}
         </div>
       </header>
 
       <main className="flex-1 p-4">
-        {orders.length === 0 ? (
+        {loading ? (
+          <div className="space-y-4">
+            {[1, 2].map((i) => (
+              <div key={i} className="bg-muted animate-pulse rounded-2xl h-36" />
+            ))}
+          </div>
+        ) : active.length === 0 ? (
           <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
             <div className="w-20 h-20 rounded-full bg-muted flex items-center justify-center">
               <ChefHat className="w-10 h-10 text-muted-foreground" />
@@ -67,73 +97,77 @@ export default function KitchenScreen({
           </div>
         ) : (
           <div className="space-y-4">
-            {orders.map((order, idx) => (
-              <div
-                key={order.id}
-                className="bg-card border-2 border-primary/20 rounded-2xl overflow-hidden shadow-md"
-              >
-                {/* Order header */}
-                <div className="flex items-center justify-between bg-primary/10 px-4 py-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl font-extrabold text-primary">
-                      T{order.tableId}
-                    </span>
-                    <span className="bg-primary/20 text-primary text-xs font-bold px-2 py-0.5 rounded-full">
-                      Table {order.tableId}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5 text-muted-foreground text-xs">
-                    <Clock className="w-3.5 h-3.5" />
-                    <span className="font-semibold">
-                      {formatTime(order.timestamp)}
-                    </span>
-                    <span className="text-status-billing font-bold">
-                      • {timeAgo(order.timestamp)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Items */}
-                <div className="px-4 py-3 space-y-2">
-                  {order.items.map((cartItem) => (
-                    <div
-                      key={cartItem.item.id}
-                      className="flex items-center gap-3"
-                    >
-                      <span className="w-8 h-8 flex items-center justify-center bg-primary text-primary-foreground rounded-lg font-extrabold text-sm shrink-0">
-                        {cartItem.quantity}
+            {active.map((order) => {
+              const tableNum = order.tableId.replace("table_", "");
+              const orderTotal = order.items.reduce(
+                (s, i) => s + i.price * i.quantity,
+                0
+              );
+              return (
+                <div
+                  key={order.id}
+                  className="bg-card border-2 border-primary/20 rounded-2xl overflow-hidden shadow-md"
+                >
+                  {/* Order header */}
+                  <div className="flex items-center justify-between bg-primary/10 px-4 py-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl font-extrabold text-primary">
+                        T{tableNum}
                       </span>
-                      <span className="text-foreground font-semibold text-base leading-tight">
-                        {cartItem.item.name}
-                      </span>
-                      <span className="ml-auto text-muted-foreground text-sm shrink-0">
-                        ₹{cartItem.item.price * cartItem.quantity}
+                      <span className="bg-primary/20 text-primary text-xs font-bold px-2 py-0.5 rounded-full">
+                        Table {tableNum}
                       </span>
                     </div>
-                  ))}
-                </div>
-
-                {/* Total + Done button */}
-                <div className="px-4 pb-4 flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs text-muted-foreground">Total</p>
-                    <p className="text-foreground font-extrabold text-lg">
-                      ₹
-                      {order.items.reduce(
-                        (s, c) => s + c.item.price * c.quantity,
-                        0
-                      )}
-                    </p>
+                    <div className="flex items-center gap-1.5 text-muted-foreground text-xs">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span className="font-semibold">
+                        {formatTime(order.updatedAt)}
+                      </span>
+                      <span className="text-status-billing font-bold">
+                        • {timeAgo(order.updatedAt)}
+                      </span>
+                    </div>
                   </div>
-                  <button
-                    onClick={() => onMarkDone(order.id)}
-                    className="flex-1 py-3 bg-secondary text-secondary-foreground rounded-xl font-extrabold text-sm active:scale-95 transition-transform"
-                  >
-                    Mark Done
-                  </button>
+
+                  {/* Items */}
+                  <div className="px-4 py-3 space-y-2">
+                    {order.items.map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex items-center gap-3"
+                      >
+                        <span className="w-8 h-8 flex items-center justify-center bg-primary text-primary-foreground rounded-lg font-extrabold text-sm shrink-0">
+                          {item.quantity}
+                        </span>
+                        <span className="text-foreground font-semibold text-base leading-tight">
+                          {item.name}
+                        </span>
+                        <span className="ml-auto text-muted-foreground text-sm shrink-0">
+                          ₹{item.price * item.quantity}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Total + Done button */}
+                  <div className="px-4 pb-4 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Total</p>
+                      <p className="text-foreground font-extrabold text-lg">
+                        ₹{orderTotal}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleMarkDone(order)}
+                      disabled={marking === order.id}
+                      className="flex-1 py-3 bg-secondary text-secondary-foreground rounded-xl font-extrabold text-sm active:scale-95 transition-transform disabled:opacity-60"
+                    >
+                      {marking === order.id ? "Updating…" : "Mark Done ✓"}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </main>

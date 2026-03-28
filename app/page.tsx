@@ -1,146 +1,110 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import {
-  CartItem,
-  INITIAL_TABLES,
-  KitchenOrder,
-  TableData,
-  TableStatus,
-} from "@/lib/chaska-data";
+import { useState, useEffect } from "react";
+import { AppRole } from "@/lib/chaska-data";
+import { useTables } from "@/hooks/useTables";
+import { useOrders } from "@/hooks/useOrders";
+import RoleSelect from "@/components/chaska/role-select";
 import TableDashboard from "@/components/chaska/table-dashboard";
 import OrderScreen from "@/components/chaska/order-screen";
 import KitchenScreen from "@/components/chaska/kitchen-screen";
 import BillingScreen from "@/components/chaska/billing-screen";
 import BottomNav, { AppView } from "@/components/chaska/bottom-nav";
+import { seedTablesIfEmpty } from "@/services/tables";
 
-const DUMMY_KITCHEN_ORDERS: KitchenOrder[] = [
-  {
-    id: "demo-1",
-    tableId: 2,
-    timestamp: new Date(Date.now() - 8 * 60 * 1000),
-    items: [
-      {
-        item: { id: "c1", name: "Manchurian Dry", price: 130, category: "chinese" },
-        quantity: 2,
-      },
-      {
-        item: { id: "p1", name: "Paneer Butter Masala", price: 170, category: "punjabi" },
-        quantity: 1,
-      },
-    ],
-  },
-  {
-    id: "demo-2",
-    tableId: 7,
-    timestamp: new Date(Date.now() - 3 * 60 * 1000),
-    items: [
-      {
-        item: { id: "c3", name: "Hakka Noodles", price: 120, category: "chinese" },
-        quantity: 1,
-      },
-      {
-        item: { id: "c4", name: "Veg Fried Rice", price: 120, category: "chinese" },
-        quantity: 2,
-      },
-    ],
-  },
-];
+const ROLE_KEY = "chaska_role";
 
 export default function Page() {
-  const [tables, setTables] = useState<TableData[]>(INITIAL_TABLES);
+  const [role, setRole] = useState<AppRole | null>(null);
+  const [roleLoaded, setRoleLoaded] = useState(false);
   const [activeView, setActiveView] = useState<AppView>("tables");
-  const [selectedTable, setSelectedTable] = useState<number | null>(null);
-  const [kitchenOrders, setKitchenOrders] =
-    useState<KitchenOrder[]>(DUMMY_KITCHEN_ORDERS);
-  const [tableOrders, setTableOrders] = useState<Record<number, CartItem[]>>({});
+  const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
 
-  const handleSelectTable = useCallback((tableId: number) => {
-    setSelectedTable(tableId);
+  const { tables, loading: tablesLoading } = useTables();
+  const { orders, loading: ordersLoading } = useOrders();
+
+  // ── On mount: restore role from localStorage ────────────────────────────────
+  useEffect(() => {
+    const saved = localStorage.getItem(ROLE_KEY) as AppRole | null;
+    if (saved) setRole(saved);
+    setRoleLoaded(true);
   }, []);
 
-  const handleBackFromOrder = useCallback(() => {
-    setSelectedTable(null);
-  }, []);
+  // ── On first load with tables present: seed if empty ───────────────────────
+  useEffect(() => {
+    if (!tablesLoading && tables.length === 0) {
+      seedTablesIfEmpty(8).catch(console.error);
+    }
+  }, [tablesLoading, tables.length]);
 
-  const handleSendToKitchen = useCallback((order: KitchenOrder) => {
-    setKitchenOrders((prev) => [...prev, order]);
-    setTables((prev) =>
-      prev.map((t) =>
-        t.id === order.tableId ? { ...t, status: "active" as TableStatus } : t
-      )
-    );
-    setTableOrders((prev) => ({
-      ...prev,
-      [order.tableId]: order.items,
-    }));
-    setSelectedTable(null);
-  }, []);
+  // ── Handle role selection ───────────────────────────────────────────────────
+  const handleSelectRole = (selectedRole: AppRole) => {
+    setRole(selectedRole);
+    localStorage.setItem(ROLE_KEY, selectedRole);
 
-  const handleMarkKitchenDone = useCallback((orderId: string) => {
-    setKitchenOrders((prev) => {
-      const order = prev.find((o) => o.id === orderId);
-      if (order) {
-        setTables((t) =>
-          t.map((tbl) =>
-            tbl.id === order.tableId
-              ? { ...tbl, status: "billing" as TableStatus }
-              : tbl
-          )
-        );
-      }
-      return prev.filter((o) => o.id !== orderId);
-    });
-  }, []);
+    // Jump to the correct default view per role
+    if (selectedRole === "kitchen") setActiveView("kitchen");
+    else if (selectedRole === "billing") setActiveView("billing");
+    else setActiveView("tables");
+  };
 
-  const handleClearTable = useCallback((tableId: number) => {
-    setTables((prev) =>
-      prev.map((t) =>
-        t.id === tableId ? { ...t, status: "free" as TableStatus } : t
-      )
-    );
-    setTableOrders((prev) => {
-      const updated = { ...prev };
-      delete updated[tableId];
-      return updated;
-    });
-  }, []);
+  // ── Loading: wait for localStorage read before rendering ───────────────────
+  if (!roleLoaded) return null;
 
-  if (selectedTable !== null && activeView === "tables") {
+  // ── Role selection screen ───────────────────────────────────────────────────
+  if (!role) {
+    return <RoleSelect onSelectRole={handleSelectRole} />;
+  }
+
+  // ── Order screen overlay (waiter taps a table) ─────────────────────────────
+  if (selectedTableId && activeView === "tables") {
+    const table = tables.find((t) => t.id === selectedTableId);
     return (
       <OrderScreen
-        tableId={selectedTable}
-        onBack={handleBackFromOrder}
-        onSendToKitchen={handleSendToKitchen}
-        existingCart={tableOrders[selectedTable] ?? []}
+        tableId={selectedTableId}
+        tableNumber={table?.tableNumber ?? 0}
+        existingOrderId={table?.currentOrderId ?? null}
+        onBack={() => setSelectedTableId(null)}
       />
     );
   }
 
+  const activeOrderCount = orders.filter(
+    (o) => o.status === "pending" || o.status === "preparing"
+  ).length;
+
   return (
     <div className="pb-16">
       {activeView === "tables" && (
-        <TableDashboard tables={tables} onSelectTable={handleSelectTable} />
-      )}
-      {activeView === "kitchen" && (
-        <KitchenScreen
-          orders={kitchenOrders}
-          onMarkDone={handleMarkKitchenDone}
+        <TableDashboard
+          tables={tables}
+          loading={tablesLoading}
+          onSelectTable={(id) => setSelectedTableId(id)}
         />
       )}
+
+      {activeView === "kitchen" && (
+        <KitchenScreen orders={orders} loading={ordersLoading} />
+      )}
+
       {activeView === "billing" && (
         <BillingScreen
           tables={tables}
-          orders={kitchenOrders}
-          tableOrders={tableOrders}
+          orders={orders}
+          loading={tablesLoading || ordersLoading}
           onBack={() => setActiveView("tables")}
-          onClearTable={handleClearTable}
         />
       )}
+
       <BottomNav
         activeView={activeView}
         onNavigate={setActiveView}
-        kitchenOrderCount={kitchenOrders.length}
+        role={role}
+        onChangeRole={() => {
+          setRole(null);
+          localStorage.removeItem(ROLE_KEY);
+        }}
+        kitchenOrderCount={activeOrderCount}
       />
     </div>
   );
