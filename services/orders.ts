@@ -17,7 +17,10 @@ import {
   OrderStatus,
   TableStatus,
 } from "@/lib/chaska-data";
-import { updateTableStatus, setTableCurrentOrder } from "@/services/tables";
+import { updateTableStatus } from "@/services/tables";
+// Receipt helpers live in lib/receipt.ts — re-exported here for backward compatibility
+export { generateReceipt, formatReceiptForPrint } from "@/lib/receipt";
+export type { ReceiptData, ReceiptItem } from "@/lib/receipt";
 
 const ORDERS_COLLECTION = "orders";
 
@@ -167,57 +170,6 @@ export async function clearTable(
   await batch.commit();
 }
 
-// ─── Receipt Generation ───────────────────────────────────────────────────────
-
-export interface ReceiptData {
-  tableId: string;
-  tableNumber: number;
-  items: Array<{
-    name: string;
-    price: number;
-    quantity: number;
-    lineTotal: number;
-  }>;
-  subtotal: number;
-  tax: number;
-  total: number;
-  generatedAt: Date;
-}
-
-/**
- * Generate structured receipt data from multiple FirestoreOrders.
- */
-export function generateReceipt(
-  orders: FirestoreOrder[],
-  tableNumber: number
-): ReceiptData {
-  const itemMap = new Map<string, { name: string; price: number; quantity: number }>();
-  
-  orders.forEach(o => {
-    o.items.forEach(i => {
-      if (itemMap.has(i.id)) {
-        itemMap.get(i.id)!.quantity += i.quantity;
-      } else {
-        itemMap.set(i.id, { name: i.name, price: i.price, quantity: i.quantity });
-      }
-    });
-  });
-
-  const mergedItems = Array.from(itemMap.values()).map(item => ({
-    ...item,
-    lineTotal: item.price * item.quantity
-  }));
-
-  const subtotal = mergedItems.reduce((sum, i) => sum + i.lineTotal, 0);
-  const tax = 0; 
-
-  return {
-    tableId: orders[0]?.tableId ?? "unknown",
-    tableNumber,
-    items: mergedItems,
-    subtotal,
-    tax,
-    total: subtotal + tax,
-    generatedAt: new Date(),
-  };
-}
+// Receipt generation has moved to lib/receipt.ts
+// Use: import { generateReceipt, formatReceiptForPrint } from "@/lib/receipt"
+// or:  import { generateReceipt } from "@/services/orders"  (re-exported above)
