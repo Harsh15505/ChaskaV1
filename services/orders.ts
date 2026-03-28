@@ -75,8 +75,8 @@ export function subscribeToTableOrder(
 }
 
 /**
- * Create a brand new order for a table.
- * Also sets table status → "active" and links the order ID.
+ * Create a brand new order for a table (a new round/ticket).
+ * Also sets table status → "active".
  */
 export async function createOrder(
   tableId: string,
@@ -90,8 +90,6 @@ export async function createOrder(
     updatedAt: serverTimestamp(),
   });
 
-  // Link order to table and mark it active
-  await setTableCurrentOrder(tableId, ref.id);
   await updateTableStatus(tableId, "active");
 
   return ref.id;
@@ -99,24 +97,19 @@ export async function createOrder(
 
 /**
  * Merge new/updated items into an existing order.
- * If an item already exists, its quantity is updated.
- * If new, it is appended.
  */
 export async function updateOrderItems(
   orderId: string,
   newItems: OrderItem[]
 ): Promise<void> {
-  // We directly overwrite with the full item list (caller owns the merge logic)
   await updateDoc(doc(db, ORDERS_COLLECTION, orderId), {
     items: newItems,
-    status: "pending", // reset to pending so kitchen sees the update
     updatedAt: serverTimestamp(),
   });
 }
 
 /**
  * Update an order's status.
- * e.g. kitchen marks "served", billing marks "billed"
  */
 export async function updateOrderStatus(
   orderId: string,
@@ -149,23 +142,34 @@ export async function requestBill(
   await updateTableStatus(tableId, "billing" as TableStatus);
 }
 
+import { writeBatch, getDocs } from "firebase/firestore";
+
 /**
  * Billing clears a table after payment.
- * Sets order → "billed", table → "free", unlinks current order.
+ * Completes all active orders for the table and frees the table.
  */
 export async function clearTable(
-  orderId: string,
   tableId: string
 ): Promise<void> {
-  await updateOrderStatus(orderId, "billed");
-  await setTableCurrentOrder(tableId, null);
-  await updateTableStatus(tableId, "free" as TableStatus);
+  const q = query(
+    collection(db, ORDERS_COLLECTION),
+    where("tableId", "==", tableId),
+    where("status", "!=", "billed")
+  );
+  const snap = await getDocs(q);
+  
+  const batch = writeBatch(db);
+  snap.docs.forEach((d) => {
+    batch.update(d.ref, { status: "billed", updatedAt: serverTimestamp() });
+  });
+  
+  batch.update(doc(db, "tables", tableId), { status: "free" });
+  await batch.commit();
 }
 
 // ─── Receipt Generation ───────────────────────────────────────────────────────
 
 export interface ReceiptData {
-  orderId: string;
   tableId: string;
   tableNumber: number;
   items: Array<{
@@ -175,37 +179,42 @@ export interface ReceiptData {
     lineTotal: number;
   }>;
   subtotal: number;
-  tax: number;         // 0 for now — plug in GST logic when needed
+  tax: number;
   total: number;
   generatedAt: Date;
 }
 
 /**
- * Generate structured receipt data from a FirestoreOrder.
- * Designed to be printer-ready — plug in ESC/POS logic separately.
- *
- * @param order - The FirestoreOrder document
- * @param tableNumber - Human-readable table number (e.g. 3)
+ * Generate structured receipt data from multiple FirestoreOrders.
  */
 export function generateReceipt(
-  order: FirestoreOrder,
+  orders: FirestoreOrder[],
   tableNumber: number
 ): ReceiptData {
-  const items = order.items.map((item) => ({
-    name: item.name,
-    price: item.price,
-    quantity: item.quantity,
-    lineTotal: item.price * item.quantity,
+  const itemMap = new Map<string, { name: string; price: number; quantity: number }>();
+  
+  orders.forEach(o => {
+    o.items.forEach(i => {
+      if (itemMap.has(i.id)) {
+        itemMap.get(i.id)!.quantity += i.quantity;
+      } else {
+        itemMap.set(i.id, { name: i.name, price: i.price, quantity: i.quantity });
+      }
+    });
+  });
+
+  const mergedItems = Array.from(itemMap.values()).map(item => ({
+    ...item,
+    lineTotal: item.price * item.quantity
   }));
 
-  const subtotal = items.reduce((sum, i) => sum + i.lineTotal, 0);
-  const tax = 0; // Add GST/VAT calculation here when needed
+  const subtotal = mergedItems.reduce((sum, i) => sum + i.lineTotal, 0);
+  const tax = 0; 
 
   return {
-    orderId: order.id,
-    tableId: order.tableId,
+    tableId: orders[0]?.tableId ?? "unknown",
     tableNumber,
-    items,
+    items: mergedItems,
     subtotal,
     tax,
     total: subtotal + tax,

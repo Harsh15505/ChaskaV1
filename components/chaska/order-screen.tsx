@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { CartItem, MENU_ITEMS, MenuItem, OrderItem, TableStatus } from "@/lib/chaska-data";
-import { useTableOrder } from "@/hooks/useOrders";
-import { createOrder, updateOrderItems, requestBill } from "@/services/orders";
+import { createOrder, requestBill } from "@/services/orders";
 import { cn } from "@/lib/utils";
 import { ArrowLeft, ChevronRight, Minus, Plus, ShoppingBag } from "lucide-react";
 import { toast } from "sonner";
@@ -33,40 +32,18 @@ function cartToOrderItems(cart: CartItem[]): OrderItem[] {
   }));
 }
 
-/** Convert OrderItem[] from Firestore back to CartItem[] for local state */
-function orderItemsToCart(items: OrderItem[]): CartItem[] {
-  return items.map((oi) => {
-    const menuItem: MenuItem = {
-      id: oi.id,
-      name: oi.name,
-      price: oi.price,
-      category:
-        MENU_ITEMS.find((m) => m.id === oi.id)?.category ?? "chinese",
-    };
-    return { item: menuItem, quantity: oi.quantity };
-  });
-}
-
 export default function OrderScreen({
   tableId,
   tableNumber,
   tableStatus,
-  existingOrderId,
   onBack,
 }: OrderScreenProps) {
   const [activeCategory, setActiveCategory] = useState<Category>("chinese");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [sending, setSending] = useState(false);
 
-  // Listen to the current order for this table in real time
-  const { order, loading: orderLoading } = useTableOrder(tableId);
-
-  // Sync cart with Firestore order when it loads
-  useEffect(() => {
-    if (!orderLoading && order) {
-      setCart(orderItemsToCart(order.items));
-    }
-  }, [orderLoading, order]);
+  // We DO NOT fetch the existing order anymore. 
+  // Waiter ALWAYS sees a fresh cart for "Round 2".
 
   const filteredItems = MENU_ITEMS.filter(
     (item) => item.category === activeCategory
@@ -105,21 +82,19 @@ export default function OrderScreen({
     0
   );
 
-  // Can the waiter still edit? Locked once table moves to 'billing' state
+  // Locked once table moves to 'billing' state
   const isLocked = tableStatus === "billing";
+
+  // Check if they placed an order before by checking if table is already active
+  const tableHasActiveOrders = tableStatus === "active";
 
   const handleSendToKitchen = async () => {
     if (cart.length === 0 || sending) return;
     setSending(true);
     try {
       const items = cartToOrderItems(cart);
-      if (order) {
-        // Existing order — update items
-        await updateOrderItems(order.id, items);
-      } else {
-        // New order — create in Firestore
-        await createOrder(tableId, items);
-      }
+      // ALWAYS create a NEW order ticket for the kitchen (Round 1, Round 2, etc.)
+      await createOrder(tableId, items);
       toast.success("Order sent to kitchen!");
       onBack();
     } catch (err) {
@@ -203,16 +178,9 @@ export default function OrderScreen({
 
       {/* Menu Items Grid */}
       <div className="flex-1 px-4 py-3 pb-56">
-        {orderLoading ? (
-          <div className="grid grid-cols-2 gap-3">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="bg-muted animate-pulse rounded-2xl h-28" />
-            ))}
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3">
-            {filteredItems.map((item) => {
-              const qty = getQuantity(item.id);
+        <div className="grid grid-cols-2 gap-3">
+          {filteredItems.map((item) => {
+            const qty = getQuantity(item.id);
               return (
                 <div
                   key={item.id}
@@ -265,11 +233,10 @@ export default function OrderScreen({
               );
             })}
           </div>
-        )}
       </div>
 
       {/* Bottom Cart Section */}
-      {(!isLocked && (cart.length > 0 || order)) && (
+      {(!isLocked && (cart.length > 0 || tableHasActiveOrders)) && (
         <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border px-4 pt-3 pb-6 shadow-2xl space-y-3">
           {/* Cart items summary only if cart has items */}
           {cart.length > 0 && (
@@ -297,7 +264,7 @@ export default function OrderScreen({
           )}
 
           <div className="flex gap-3">
-            {order && (
+            {tableHasActiveOrders && (
               <button
                 onClick={handleRequestBill}
                 disabled={sending}
@@ -313,7 +280,7 @@ export default function OrderScreen({
                 disabled={sending}
                 className={cn(
                   "py-4 bg-secondary text-secondary-foreground rounded-2xl font-extrabold text-base flex items-center justify-center gap-2 active:scale-95 transition-transform shadow-lg disabled:opacity-60",
-                  order ? "flex-[1.5]" : "flex-1"
+                  tableHasActiveOrders ? "flex-[1.5]" : "flex-1"
                 )}
               >
                 {sending ? "Sending…" : "Send to Kitchen"}

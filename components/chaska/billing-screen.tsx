@@ -29,30 +29,46 @@ export default function BillingScreen({
     (t) => t.status === "active" || t.status === "billing"
   );
 
-  // Find the active order for the selected table
-  const selectedOrder = selectedTableId
-    ? orders.find((o) => o.tableId === selectedTableId) ?? null
-    : null;
+  // Active orders for the selected table (could be multiple rounds)
+  const selectedKitchenOrders = selectedTableId
+    ? orders.filter((o) => o.tableId === selectedTableId)
+    : [];
 
   const selectedTable = selectedTableId
     ? tables.find((t) => t.id === selectedTableId) ?? null
     : null;
 
-  const total = selectedOrder
-    ? selectedOrder.items.reduce((sum, i) => sum + i.price * i.quantity, 0)
-    : 0;
+  // Merge items across all rounds for display
+  const mergedItemsMap = new Map<string, { id: string; name: string; price: number; quantity: number }>();
+  selectedKitchenOrders.forEach((o) => {
+    o.items.forEach((i) => {
+      if (mergedItemsMap.has(i.id)) {
+        mergedItemsMap.get(i.id)!.quantity += i.quantity;
+      } else {
+        mergedItemsMap.set(i.id, { ...i });
+      }
+    });
+  });
+  const mergedItems = Array.from(mergedItemsMap.values());
+  const total = mergedItems.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
   // ── Edit items directly on the billing screen ─────────────────────────────
 
   const handleChangeQty = async (itemId: string, delta: number) => {
-    if (!selectedOrder) return;
-    const updated = selectedOrder.items
+    // Find the first order round that contains this item so we can modify it
+    const orderToUpdate = selectedKitchenOrders.find((o) =>
+      o.items.some((i) => i.id === itemId)
+    );
+    if (!orderToUpdate) return;
+
+    const updated = orderToUpdate.items
       .map((i) =>
         i.id === itemId ? { ...i, quantity: i.quantity + delta } : i
       )
       .filter((i) => i.quantity > 0); // remove if qty reaches 0
+
     try {
-      await updateOrderItems(selectedOrder.id, updated);
+      await updateOrderItems(orderToUpdate.id, updated);
     } catch {
       toast.error("Failed to update item. Try again.");
     }
@@ -61,18 +77,18 @@ export default function BillingScreen({
   // ── Generate bill ─────────────────────────────────────────────────────────
 
   const handleGenerateBill = () => {
-    if (!selectedOrder || !selectedTable) return;
-    const data = generateReceipt(selectedOrder, selectedTable.tableNumber);
+    if (selectedKitchenOrders.length === 0 || !selectedTable) return;
+    const data = generateReceipt(selectedKitchenOrders, selectedTable.tableNumber);
     setReceipt(data);
   };
 
   // ── Clear table (mark billed) ─────────────────────────────────────────────
 
   const handleClearTable = async () => {
-    if (!selectedOrder || !selectedTableId || clearing) return;
+    if (selectedKitchenOrders.length === 0 || !selectedTableId || clearing) return;
     setClearing(true);
     try {
-      await clearTable(selectedOrder.id, selectedTableId);
+      await clearTable(selectedTableId);
       toast.success(`Table ${selectedTable?.tableNumber} cleared!`);
       setSelectedTableId(null);
       setReceipt(null);
@@ -149,7 +165,7 @@ export default function BillingScreen({
         </div>
 
         {/* Bill Details */}
-        {selectedOrder && (
+        {selectedKitchenOrders.length > 0 && (
           <div className="bg-card border border-border rounded-2xl overflow-hidden shadow-md">
             {/* Bill header */}
             <div className="bg-primary/10 px-4 py-3 flex items-center gap-2">
@@ -162,7 +178,7 @@ export default function BillingScreen({
               </span>
             </div>
 
-            {selectedOrder.items.length === 0 ? (
+            {mergedItems.length === 0 ? (
               <div className="px-4 py-6 text-center text-muted-foreground text-sm">
                 No items ordered for this table
               </div>
@@ -175,7 +191,7 @@ export default function BillingScreen({
                   <span className="w-16 text-right">Amount</span>
                 </div>
 
-                {selectedOrder.items.map((item) => (
+                {mergedItems.map((item) => (
                   <div key={item.id} className="flex items-center gap-2">
                     <span className="flex-1 text-foreground text-sm leading-tight pr-1">
                       {item.name}
@@ -213,7 +229,7 @@ export default function BillingScreen({
                 {/* Total */}
                 <div className="border-t border-border pt-3 flex items-center justify-between">
                   <span className="text-muted-foreground text-sm font-semibold">
-                    Total
+                    Total ({selectedKitchenOrders.length} {selectedKitchenOrders.length === 1 ? 'round' : 'rounds'})
                   </span>
                   <span className="text-foreground font-extrabold text-2xl">
                     ₹{total}
@@ -225,7 +241,7 @@ export default function BillingScreen({
         )}
 
         {/* No order yet for selected table */}
-        {selectedTableId && !selectedOrder && !loading && (
+        {selectedTableId && selectedKitchenOrders.length === 0 && !loading && (
           <div className="text-center text-muted-foreground text-sm py-4">
             No active order for this table yet.
           </div>
@@ -247,9 +263,9 @@ export default function BillingScreen({
         )}
 
         {/* Actions */}
-        {selectedOrder && (
+        {selectedKitchenOrders.length > 0 && (
           <div className="space-y-3 pb-4">
-            {!receipt && selectedOrder.items.length > 0 && (
+            {!receipt && mergedItems.length > 0 && (
               <button
                 onClick={handleGenerateBill}
                 className="w-full py-4 bg-primary text-primary-foreground rounded-2xl font-extrabold text-base active:scale-95 transition-transform shadow-lg"
@@ -257,7 +273,7 @@ export default function BillingScreen({
                 Generate Bill
               </button>
             )}
-            {(receipt || selectedOrder.items.length === 0) && (
+            {(receipt || mergedItems.length === 0) && (
               <button
                 onClick={handleClearTable}
                 disabled={clearing}
