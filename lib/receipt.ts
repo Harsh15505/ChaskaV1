@@ -42,14 +42,17 @@ function buildUpiString(amount: number): string {
 // ─── generateReceipt ──────────────────────────────────────────────────────────
 
 /**
- * Takes multiple order rounds for a table and produces a single receipt.
+ * Takes multiple order rounds for a table + optional takeaway items and
+ * produces a single merged receipt.
  *
- * Why multiple orders? Each "round" (Round 1, Round 2…) is a separate
- * Firestore document. We merge them here so the bill shows one clean total.
+ * @param orders       - Firestore order documents (one per round)
+ * @param tableNumber  - Human-readable table number
+ * @param extraItems   - Optional takeaway items added by billing (local state only)
  */
 export function generateReceipt(
   orders: FirestoreOrder[],
-  tableNumber: number
+  tableNumber: number,
+  extraItems: Array<{ id: string; name: string; price: number; quantity: number }> = []
 ): ReceiptData {
   // Merge items across all rounds. If the same item appears in multiple
   // rounds, add their quantities together.
@@ -71,6 +74,23 @@ export function generateReceipt(
         });
       }
     });
+  });
+
+  // Merge in takeaway items (if any)
+  extraItems.forEach((i) => {
+    if (itemMap.has(i.id)) {
+      const existing = itemMap.get(i.id)!;
+      existing.quantity += i.quantity;
+      existing.total = existing.price * existing.quantity;
+    } else {
+      itemMap.set(i.id, {
+        id: i.id,
+        name: i.name,
+        price: i.price,
+        quantity: i.quantity,
+        total: i.price * i.quantity,
+      });
+    }
   });
 
   const items = Array.from(itemMap.values());
