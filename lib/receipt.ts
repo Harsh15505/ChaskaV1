@@ -33,10 +33,11 @@ export interface ReceiptData {
 
 /** Read from .env.local — falls back to placeholder if not set */
 const UPI_ID = process.env.NEXT_PUBLIC_UPI_ID ?? "chaska@upi";
+const UPI_NAME = process.env.NEXT_PUBLIC_UPI_NAME ?? "Chaska";
 
 /** Build the UPI deep-link that gets encoded into the QR code */
 function buildUpiString(amount: number): string {
-  return `upi://pay?pa=${UPI_ID}&pn=Chaska&am=${amount}&cu=INR`;
+  return `upi://pay?pa=${UPI_ID}&pn=${encodeURIComponent(UPI_NAME)}&am=${amount}&cu=INR`;
 }
 
 // ─── generateReceipt ──────────────────────────────────────────────────────────
