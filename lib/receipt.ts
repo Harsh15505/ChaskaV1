@@ -29,11 +29,13 @@ export interface ReceiptData {
   upiString: string;
 }
 
-// ─── UPI Config ───────────────────────────────────────────────────────────────
+// ─── Brand Config (all from .env.local) ─────────────────────────────────────
 
-/** Read from .env.local — falls back to placeholder if not set */
-const UPI_ID = process.env.NEXT_PUBLIC_UPI_ID ?? "chaska@upi";
-const UPI_NAME = process.env.NEXT_PUBLIC_UPI_NAME ?? "Chaska";
+const UPI_ID      = process.env.NEXT_PUBLIC_UPI_ID       ?? "chaska@upi";
+const UPI_NAME    = process.env.NEXT_PUBLIC_UPI_NAME     ?? "Chaska";
+export const BUSINESS_NAME   = process.env.NEXT_PUBLIC_BUSINESS_NAME  ?? "Chaska";
+export const RECEIPT_FOOTER  = process.env.NEXT_PUBLIC_RECEIPT_FOOTER ?? "Thank you for dining with us!";
+export const GST_NUMBER      = process.env.NEXT_PUBLIC_GST_NUMBER     ?? "";
 
 /** Build the UPI deep-link that gets encoded into the QR code */
 function buildUpiString(amount: number): string {
@@ -136,26 +138,29 @@ export function generateReceipt(
 export function formatReceiptForPrint(receipt: ReceiptData): string {
   const DIVIDER = "──────────────────────────";
 
-  const header = [`CHASKA`, `Table: ${receipt.tableNumber}`, DIVIDER].join(
-    "\n"
-  );
+  const headerLines = [
+    BUSINESS_NAME.toUpperCase(),
+    ...(GST_NUMBER ? [`GST: ${GST_NUMBER}`] : []),
+    `Table: ${receipt.tableNumber}`,
+    DIVIDER,
+  ];
 
   const itemLines = receipt.items
     .map((item) => {
-      // Align name and price on same line
       const label = `${item.quantity} x ${item.name}`;
       const price = `₹${item.total}`;
-      // Pad to a fixed width so columns align on monospace printers
       return label.padEnd(22) + price.padStart(6);
     })
     .join("\n");
 
-  const footer = [
+  const footerLines = [
     DIVIDER,
     `Total:`.padEnd(22) + `₹${receipt.totalAmount}`.padStart(6),
     `Time: ${receipt.time}`,
     `Pay via UPI: ${receipt.upiString}`,
-  ].join("\n");
+    "",
+    RECEIPT_FOOTER,
+  ];
 
-  return [header, itemLines, footer].join("\n");
+  return [headerLines.join("\n"), itemLines, footerLines.join("\n")].join("\n");
 }

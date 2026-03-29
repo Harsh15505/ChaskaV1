@@ -4,33 +4,42 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* Chaska — dark-first theme, always dark */
-  --background: oklch(0.12 0 0);
-  --foreground: oklch(0.96 0 0);
-  --card: oklch(0.17 0 0);
+  /* ═══════════════════════════════════════════════════════
+     BRAND COLORS — Edit these when client sends palette
+     Current theme: Dark background + Yellow primary + Green secondary
+     ═══════════════════════════════════════════════════════ */
+
+  --background: oklch(0.12 0 0);       /* Main background — nearly black */
+  --foreground: oklch(0.96 0 0);       /* Main text — nearly white */
+  --card: oklch(0.17 0 0);             /* Card/panel backgrounds */
   --card-foreground: oklch(0.96 0 0);
   --popover: oklch(0.17 0 0);
   --popover-foreground: oklch(0.96 0 0);
-  /* Primary = yellow */
-  --primary: oklch(0.87 0.19 95);
+
+  /* PRIMARY — the main brand/accent color (buttons, highlights) */
+  --primary: oklch(0.87 0.19 95);      /* Yellow — swap this for client's main color */
   --primary-foreground: oklch(0.12 0 0);
-  /* Secondary = green */
-  --secondary: oklch(0.65 0.2 145);
+
+  /* SECONDARY — success/confirm color (Clear Table button, free status) */
+  --secondary: oklch(0.65 0.2 145);   /* Green — swap for client's secondary color */
   --secondary-foreground: oklch(0.12 0 0);
+
   --muted: oklch(0.22 0 0);
   --muted-foreground: oklch(0.58 0 0);
   --accent: oklch(0.87 0.19 95);
   --accent-foreground: oklch(0.12 0 0);
-  --destructive: oklch(0.55 0.22 25);
+  --destructive: oklch(0.55 0.22 25); /* Red — for errors and Bill Requested badges */
   --destructive-foreground: oklch(0.96 0 0);
   --border: oklch(0.26 0 0);
   --input: oklch(0.22 0 0);
   --ring: oklch(0.87 0.19 95);
   --radius: 0.75rem;
-  /* Status colors */
-  --status-free: oklch(0.65 0.2 145);
-  --status-active: oklch(0.87 0.19 95);
-  --status-billing: oklch(0.55 0.22 25);
+
+  /* STATUS COLORS — table and order state indicators */
+  --status-free: oklch(0.65 0.2 145);    /* Green — table is free */
+  --status-active: oklch(0.87 0.19 95);  /* Yellow — table has an active order */
+  --status-billing: oklch(0.55 0.22 25); /* Red/orange — bill requested */
+
   /* Sidebar */
   --sidebar: oklch(0.15 0 0);
   --sidebar-foreground: oklch(0.96 0 0);

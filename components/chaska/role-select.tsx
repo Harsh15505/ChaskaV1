@@ -1,11 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import { AppRole } from "@/lib/chaska-data";
 import { ChefHat, Receipt, UtensilsCrossed } from "lucide-react";
+import PinModal from "@/components/chaska/pin-modal";
 
 interface RoleSelectProps {
   onSelectRole: (role: AppRole) => void;
 }
+
+const BILLING_PIN = process.env.NEXT_PUBLIC_BILLING_PIN ?? "1234";
 
 const ROLES: {
   id: AppRole;
@@ -38,42 +42,68 @@ const ROLES: {
 ];
 
 export default function RoleSelect({ onSelectRole }: RoleSelectProps) {
-  return (
-    <div className="flex flex-col min-h-screen bg-background items-center justify-center px-6">
-      <div className="w-full max-w-sm space-y-8">
-        {/* Header */}
-        <div className="text-center space-y-2">
-          <p className="text-xs font-bold tracking-[0.3em] text-primary uppercase">
-            CHASKA
-          </p>
-          <h1 className="text-3xl font-extrabold text-foreground">
-            Select Your Role
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Choose how you&apos;ll use this device
-          </p>
-        </div>
+  const [showPin, setShowPin] = useState(false);
 
-        {/* Role Cards */}
-        <div className="space-y-3">
-          {ROLES.map((role) => (
-            <button
-              key={role.id}
-              onClick={() => onSelectRole(role.id)}
-              className={`w-full flex items-center gap-4 p-5 rounded-2xl border-2 transition-all duration-150 active:scale-95 shadow-md ${role.color}`}
-              aria-label={`Select ${role.label} role`}
-            >
-              <div className="shrink-0">{role.icon}</div>
-              <div className="text-left">
-                <p className="font-extrabold text-lg leading-tight">
-                  {role.label}
-                </p>
-                <p className="text-sm opacity-70">{role.description}</p>
-              </div>
-            </button>
-          ))}
+  const handleRoleTap = (role: AppRole) => {
+    if (role === "billing") {
+      setShowPin(true); // intercept — require PIN first
+    } else {
+      onSelectRole(role); // waiter + kitchen: direct access
+    }
+  };
+
+  return (
+    <>
+      {/* PIN modal — shown only when billing is tapped */}
+      {showPin && (
+        <PinModal
+          title="Manager Access"
+          subtitle="Enter the billing PIN to continue"
+          correctPin={BILLING_PIN}
+          onSuccess={() => {
+            setShowPin(false);
+            onSelectRole("billing");
+          }}
+          onCancel={() => setShowPin(false)}
+        />
+      )}
+
+      <div className="flex flex-col min-h-screen bg-background items-center justify-center px-6">
+        <div className="w-full max-w-sm space-y-8">
+          {/* Header */}
+          <div className="text-center space-y-2">
+            <p className="text-xs font-bold tracking-[0.3em] text-primary uppercase">
+              {process.env.NEXT_PUBLIC_BUSINESS_NAME ?? "CHASKA"}
+            </p>
+            <h1 className="text-3xl font-extrabold text-foreground">
+              Select Your Role
+            </h1>
+            <p className="text-sm text-muted-foreground">
+              Choose how you&apos;ll use this device
+            </p>
+          </div>
+
+          {/* Role Cards */}
+          <div className="space-y-3">
+            {ROLES.map((role) => (
+              <button
+                key={role.id}
+                onClick={() => handleRoleTap(role.id)}
+                className={`w-full flex items-center gap-4 p-5 rounded-2xl border-2 transition-all duration-150 active:scale-95 shadow-md ${role.color}`}
+                aria-label={`Select ${role.label} role`}
+              >
+                <div className="shrink-0">{role.icon}</div>
+                <div className="text-left">
+                  <p className="font-extrabold text-lg leading-tight">
+                    {role.label}
+                  </p>
+                  <p className="text-sm opacity-70">{role.description}</p>
+                </div>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

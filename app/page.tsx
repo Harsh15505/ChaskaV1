@@ -13,6 +13,8 @@ import BottomNav, { AppView } from "@/components/chaska/bottom-nav";
 import { seedTablesIfEmpty } from "@/services/tables";
 
 const ROLE_KEY = "chaska_role";
+const ROLE_TS_KEY = "chaska_role_ts";
+const SESSION_DURATION_MS = 12 * 60 * 60 * 1000; // 12 hours
 
 export default function Page() {
   const [role, setRole] = useState<AppRole | null>(null);
@@ -23,10 +25,19 @@ export default function Page() {
   const { tables, loading: tablesLoading } = useTables();
   const { orders, loading: ordersLoading } = useOrders();
 
-  // ── On mount: restore role from localStorage ────────────────────────────────
+  // ── On mount: restore role from localStorage (with expiry check) ────────────
   useEffect(() => {
     const saved = localStorage.getItem(ROLE_KEY) as AppRole | null;
-    if (saved) setRole(saved);
+    const savedAt = Number(localStorage.getItem(ROLE_TS_KEY) ?? 0);
+    const isExpired = Date.now() - savedAt > SESSION_DURATION_MS;
+
+    if (saved && !isExpired) {
+      setRole(saved);
+    } else {
+      // Clear stale session
+      localStorage.removeItem(ROLE_KEY);
+      localStorage.removeItem(ROLE_TS_KEY);
+    }
     setRoleLoaded(true);
   }, []);
 
@@ -41,6 +52,7 @@ export default function Page() {
   const handleSelectRole = (selectedRole: AppRole) => {
     setRole(selectedRole);
     localStorage.setItem(ROLE_KEY, selectedRole);
+    localStorage.setItem(ROLE_TS_KEY, String(Date.now()));
 
     // Jump to the correct default view per role
     if (selectedRole === "kitchen") setActiveView("kitchen");
@@ -104,6 +116,7 @@ export default function Page() {
         onChangeRole={() => {
           setRole(null);
           localStorage.removeItem(ROLE_KEY);
+          localStorage.removeItem(ROLE_TS_KEY);
         }}
         kitchenOrderCount={activeOrderCount}
       />
