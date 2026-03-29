@@ -50,6 +50,8 @@ export default function BillingScreen({
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
   const [clearing, setClearing] = useState(false);
+  // Bill number is assigned once per table session — reused if Generate Bill is tapped again
+  const [billNumberForTable, setBillNumberForTable] = useState<string | null>(null);
 
   // ── Takeaway state ───────────────────────────────────────────────────────
   const [takeawayOpen, setTakeawayOpen] = useState(false);
@@ -147,9 +149,11 @@ export default function BillingScreen({
     if (selectedOrders.length === 0 && takeawayCart.length === 0) return;
     if (!selectedTable) return;
     try {
-      const billNumber = await getNextBillNumber();
+      // Only fetch a new bill number if one hasn't been assigned for this table session yet
+      const billNum = billNumberForTable ?? await getNextBillNumber();
+      if (!billNumberForTable) setBillNumberForTable(billNum);
       setReceipt(
-        generateReceipt(selectedOrders, selectedTable.tableNumber, takeawayCart, billNumber)
+        generateReceipt(selectedOrders, selectedTable.tableNumber, takeawayCart, billNum)
       );
     } catch (err) {
       console.error(err);
@@ -169,6 +173,7 @@ export default function BillingScreen({
       setReceipt(null);
       setTakeawayCart([]);
       setTakeawayOpen(false);
+      setBillNumberForTable(null); // reset for next billing session
     } catch (err) {
       console.error(err);
       toast.error("Failed to clear table. Try again.");
@@ -243,6 +248,7 @@ export default function BillingScreen({
                     onClick={() => {
                       setSelectedTableId(table.id);
                       setReceipt(null);
+                      setBillNumberForTable(null); // reset bill number when switching tables
                     }}
                     className={cn(
                       "py-4 rounded-xl font-extrabold text-lg transition-all active:scale-90",
