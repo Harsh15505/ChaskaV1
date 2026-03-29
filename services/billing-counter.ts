@@ -5,34 +5,22 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
-const COUNTER_DOC = "meta/daily_counter";
-
-/** Returns today's date as "YYYY-MM-DD" in local time */
-function todayString(): string {
-  const d = new Date();
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
-
 /**
- * Atomically increments the daily bill counter and returns the new number.
- * - If today is a new day, resets to 1.
+ * Atomically increments the global bill counter and returns the new number.
+ * - Never resets — continues incrementing across days.
  * - Safe to call concurrently from multiple devices (uses Firestore transaction).
  *
- * Returns a zero-padded string like "001", "012", "100".
+ * Returns a zero-padded string like "001", "042", "1000".
  */
 export async function getNextBillNumber(): Promise<string> {
-  const today = todayString();
-  const ref = doc(db, "meta", "daily_counter");
+  const ref = doc(db, "meta", "bill_counter");
 
   const newCount = await runTransaction(db, async (tx) => {
     const snap = await tx.get(ref);
 
-    if (!snap.exists() || snap.data()?.date !== today) {
-      // New day (or first ever) — reset to 1
-      tx.set(ref, { date: today, count: 1, updatedAt: serverTimestamp() });
+    if (!snap.exists()) {
+      // First ever bill
+      tx.set(ref, { count: 1, updatedAt: serverTimestamp() });
       return 1;
     } else {
       const next = (snap.data()?.count ?? 0) + 1;
@@ -41,6 +29,6 @@ export async function getNextBillNumber(): Promise<string> {
     }
   });
 
-  // Zero-pad to 3 digits: 1 → "001", 42 → "042"
-  return String(newCount).padStart(3, "0");
+  // Zero-pad to 4 digits: 1 → "0001", 42 → "0042"
+  return String(newCount).padStart(4, "0");
 }
