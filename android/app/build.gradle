@@ -1,8 +1,8 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "com.chaska.pos"
-    compileSdk = rootProject.ext.compileSdkVersion
+    namespace "com.chaska.pos"
+    compileSdk rootProject.ext.compileSdkVersion
     defaultConfig {
         applicationId "com.chaska.pos"
         minSdkVersion rootProject.ext.minSdkVersion
@@ -13,7 +13,7 @@ android {
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
-            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+            ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
     buildTypes {
@@ -40,8 +40,8 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
-
-    // DantSu ESC/POS Thermal Printer library — handles Bluetooth + ESC/POS commands
+    
+    // DantSu ESC/POS Thermal Printer library
     implementation 'com.github.DantSu:ESCPOS-ThermalPrinter-Android:3.3.0'
 }
 
