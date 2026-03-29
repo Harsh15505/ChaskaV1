@@ -19,6 +19,8 @@ export interface BluetoothDevice {
 }
 
 interface NativePrinterPlugin {
+  checkPermissions(): Promise<{ bluetooth: string }>;
+  requestPermissions(): Promise<{ bluetooth: string }>;
   getPairedDevices(): Promise<{ devices: BluetoothDevice[] }>;
   printReceipt(options: { address: string; data: PrintReceiptPayload }): Promise<void>;
 }
@@ -59,6 +61,19 @@ export async function getPairedDevices(): Promise<BluetoothDevice[]> {
     return [];
   }
 
+  // Request Bluetooth permissions dynamically (required for Android 12+)
+  try {
+    let permStatus = await NativePrinter.checkPermissions();
+    if (permStatus.bluetooth !== "granted") {
+      permStatus = await NativePrinter.requestPermissions();
+    }
+    if (permStatus.bluetooth !== "granted") {
+      throw new Error("Bluetooth permission was denied");
+    }
+  } catch (err) {
+    console.warn("Permission check failed or not supported:", err);
+  }
+
   const { devices } = await NativePrinter.getPairedDevices();
   return devices;
 }
@@ -85,6 +100,19 @@ export async function printReceipt(
 
   if (!printerAddress) {
     throw new Error("No printer selected. Please connect a printer first.");
+  }
+
+  // Request Bluetooth permissions dynamically (required for Android 12+)
+  try {
+    let permStatus = await NativePrinter.checkPermissions();
+    if (permStatus.bluetooth !== "granted") {
+      permStatus = await NativePrinter.requestPermissions();
+    }
+    if (permStatus.bluetooth !== "granted") {
+      throw new Error("Bluetooth permission was denied. Cannot print.");
+    }
+  } catch (err) {
+    console.warn("Permission check failed or not supported:", err);
   }
 
   // Map from ReceiptData to the shape the Java plugin expects

@@ -17,9 +17,9 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
 
-import com.github.dantsu.escposprinter.EscPosPrinter;
-import com.github.dantsu.escposprinter.connection.bluetooth.BluetoothConnection;
-import com.github.dantsu.escposprinter.textparser.PrinterTextParserImg;
+import com.dantsu.escposprinter.EscPosPrinter;
+import com.dantsu.escposprinter.connection.bluetooth.BluetoothConnection;
+import com.dantsu.escposprinter.textparser.PrinterTextParserImg;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -36,8 +36,15 @@ import java.util.Set;
 @CapacitorPlugin(
     name = "Printer",
     permissions = {
-        @Permission(strings = { Manifest.permission.BLUETOOTH }, alias = "bluetooth"),
-        @Permission(strings = { Manifest.permission.BLUETOOTH_ADMIN }, alias = "bluetoothAdmin"),
+        @Permission(
+            strings = {
+                Manifest.permission.BLUETOOTH,
+                Manifest.permission.BLUETOOTH_ADMIN,
+                Manifest.permission.BLUETOOTH_CONNECT,
+                Manifest.permission.BLUETOOTH_SCAN
+            },
+            alias = "bluetooth"
+        )
     }
 )
 public class PrinterPlugin extends Plugin {
