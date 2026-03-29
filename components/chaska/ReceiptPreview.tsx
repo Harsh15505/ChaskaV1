@@ -29,9 +29,11 @@ export default function ReceiptPreview({
   const [printerName, setPrinterName] = useState<string | null>(null);
   const [showConnect, setShowConnect] = useState(false);
   const [printing, setPrinting] = useState(false);
+  const [isNative, setIsNative] = useState(false);
 
-  // Load saved printer from localStorage on mount
+  // Load saved printer from localStorage on mount and check platform
   useEffect(() => {
+    setIsNative(isAndroid());
     const saved = getSavedPrinter();
     if (saved) {
       setPrinterAddress(saved.address);
@@ -136,7 +138,7 @@ export default function ReceiptPreview({
           </div>
 
           {/* ── Printer connection status ── */}
-          {isAndroid() && (
+          {isNative && (
             <button
               onClick={() => setShowConnect(true)}
               className="mx-5 mb-2 w-auto flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-muted/50 active:scale-95 transition-transform"
@@ -154,7 +156,7 @@ export default function ReceiptPreview({
           {/* ── Actions ── */}
           <div className="px-5 pb-6 space-y-2">
             {/* Print bill — only shown on Android */}
-            {isAndroid() && (
+            {isNative && (
               <button
                 onClick={handlePrint}
                 disabled={printing}
