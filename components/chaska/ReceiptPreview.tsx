@@ -85,7 +85,7 @@ export default function ReceiptPreview({
               <X className="w-4 h-4" />
             </button>
             <p className="text-xs font-bold tracking-[0.3em] uppercase opacity-70 mb-0.5">
-              CHASKA
+              Chaska Chinese &amp; Punjabi
             </p>
             <p className="text-2xl font-extrabold">Table {tableNumber}</p>
             <p className="text-xs opacity-60 mt-1">{time}</p>

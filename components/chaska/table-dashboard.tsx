@@ -49,7 +49,7 @@ export default function TableDashboard({
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs font-bold tracking-[0.25em] text-primary uppercase">
-              CHASKA
+              Chaska Chinese &amp; Punjabi
             </p>
             <h1 className="text-xl font-extrabold text-foreground leading-tight">
               Order Panel

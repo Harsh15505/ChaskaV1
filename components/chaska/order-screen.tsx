@@ -134,7 +134,7 @@ export default function OrderScreen({
           </button>
           <div className="flex-1">
             <p className="text-xs font-bold tracking-[0.25em] text-primary uppercase">
-              CHASKA
+              Chaska Chinese &amp; Punjabi
             </p>
             <h1 className="text-xl font-extrabold text-foreground leading-tight">
               Table {tableNumber}

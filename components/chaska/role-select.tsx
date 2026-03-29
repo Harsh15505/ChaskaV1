@@ -4,6 +4,7 @@ import { useState } from "react";
 import { AppRole } from "@/lib/chaska-data";
 import { ChefHat, Receipt, UtensilsCrossed } from "lucide-react";
 import PinModal from "@/components/chaska/pin-modal";
+import ChaskaLogo from "@/components/chaska/ChaskaLogo";
 
 interface RoleSelectProps {
   onSelectRole: (role: AppRole) => void;
@@ -70,14 +71,9 @@ export default function RoleSelect({ onSelectRole }: RoleSelectProps) {
 
       <div className="flex flex-col min-h-screen bg-background items-center justify-center px-6">
         <div className="w-full max-w-sm space-y-8">
-          {/* Header */}
-          <div className="text-center space-y-2">
-            <p className="text-xs font-bold tracking-[0.3em] text-primary uppercase">
-              {process.env.NEXT_PUBLIC_BUSINESS_NAME ?? "CHASKA"}
-            </p>
-            <h1 className="text-3xl font-extrabold text-foreground">
-              Select Your Role
-            </h1>
+          {/* Header with full logo */}
+          <div className="flex flex-col items-center space-y-2">
+            <ChaskaLogo size={140} />
             <p className="text-sm text-muted-foreground">
               Choose how you&apos;ll use this device
             </p>
