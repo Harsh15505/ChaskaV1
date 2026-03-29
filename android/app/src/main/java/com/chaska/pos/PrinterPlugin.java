@@ -17,9 +17,9 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 import com.getcapacitor.annotation.Permission;
 import com.getcapacitor.annotation.PermissionCallback;
 
-import com.github.DantSu.escposprinter.EscPosPrinter;
-import com.github.DantSu.escposprinter.connection.bluetooth.BluetoothConnection;
-import com.github.DantSu.escposprinter.textparser.PrinterTextParserImg;
+import com.github.dantsu.escposprinter.EscPosPrinter;
+import com.github.dantsu.escposprinter.connection.bluetooth.BluetoothConnection;
+import com.github.dantsu.escposprinter.textparser.PrinterTextParserImg;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
