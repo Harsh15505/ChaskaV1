@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { FirestoreOrder, FirestoreTable, MENU_ITEMS, MenuItem } from "@/lib/chaska-data";
-import { clearTable } from "@/services/orders";
+import { clearTable, updateOrderItems } from "@/services/orders";
+import { getNextBillNumber } from "@/services/billing-counter";
 import { generateReceipt } from "@/lib/receipt";
 import type { ReceiptData } from "@/lib/receipt";
 import { cn } from "@/lib/utils";
@@ -16,7 +17,6 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
-import { updateOrderItems } from "@/services/orders";
 import { toast } from "sonner";
 import ReceiptPreview from "@/components/chaska/ReceiptPreview";
 
@@ -143,14 +143,18 @@ export default function BillingScreen({
 
   // ── Generate bill ────────────────────────────────────────────────────────
 
-  const handleGenerateBill = () => {
+  const handleGenerateBill = async () => {
     if (selectedOrders.length === 0 && takeawayCart.length === 0) return;
     if (!selectedTable) return;
-
-    // Pass takeaway items as extraItems — they get merged into the receipt
-    setReceipt(
-      generateReceipt(selectedOrders, selectedTable.tableNumber, takeawayCart)
-    );
+    try {
+      const billNumber = await getNextBillNumber();
+      setReceipt(
+        generateReceipt(selectedOrders, selectedTable.tableNumber, takeawayCart, billNumber)
+      );
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to generate bill number. Try again.");
+    }
   };
 
   // ── Clear table ──────────────────────────────────────────────────────────

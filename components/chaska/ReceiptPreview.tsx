@@ -22,7 +22,7 @@ export default function ReceiptPreview({
   onClear,
   clearing,
 }: ReceiptPreviewProps) {
-  const { tableNumber, items, totalAmount, time, upiString } = receiptData;
+  const { tableNumber, items, totalAmount, time, upiString, billNumber } = receiptData;
 
   // ── Printer state ──────────────────────────────────────────────────────────
   const [printerAddress, setPrinterAddress] = useState<string | null>(null);
@@ -89,6 +89,9 @@ export default function ReceiptPreview({
             </p>
             <p className="text-2xl font-extrabold">Table {tableNumber}</p>
             <p className="text-xs opacity-60 mt-1">{time}</p>
+            <p className="text-xs font-bold opacity-80 mt-1 tracking-widest">
+              Bill #{billNumber}
+            </p>
           </div>
 
           {/* ── Item List ── */}

@@ -27,6 +27,8 @@ export interface ReceiptData {
   time: string;
   /** UPI deep-link string for QR code */
   upiString: string;
+  /** Daily sequential bill number, e.g. "007" */
+  billNumber: string;
 }
 
 // ─── Brand Config (all from .env.local) ─────────────────────────────────────
@@ -55,7 +57,8 @@ function buildUpiString(amount: number): string {
 export function generateReceipt(
   orders: FirestoreOrder[],
   tableNumber: number,
-  extraItems: Array<{ id: string; name: string; price: number; quantity: number }> = []
+  extraItems: Array<{ id: string; name: string; price: number; quantity: number }> = [],
+  billNumber: string = "000"
 ): ReceiptData {
   // Merge items across all rounds. If the same item appears in multiple
   // rounds, add their quantities together.
@@ -112,6 +115,7 @@ export function generateReceipt(
     items,
     totalAmount,
     time,
+    billNumber,
     upiString: buildUpiString(totalAmount),
   };
 }
@@ -141,7 +145,7 @@ export function formatReceiptForPrint(receipt: ReceiptData): string {
   const headerLines = [
     BUSINESS_NAME.toUpperCase(),
     ...(GST_NUMBER ? [`GST: ${GST_NUMBER}`] : []),
-    `Table: ${receipt.tableNumber}`,
+    `Bill No: #${receipt.billNumber}  |  Table: ${receipt.tableNumber}`,
     DIVIDER,
   ];
 
