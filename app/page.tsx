@@ -10,7 +10,7 @@ import OrderScreen from "@/components/chaska/order-screen";
 import KitchenScreen from "@/components/chaska/kitchen-screen";
 import BillingScreen from "@/components/chaska/billing-screen";
 import BottomNav, { AppView } from "@/components/chaska/bottom-nav";
-import { seedTablesIfEmpty, ensureTablesCount } from "@/services/tables";
+import { seedTablesIfEmpty } from "@/services/tables";
 
 const ROLE_KEY = "chaska_role";
 const ROLE_TS_KEY = "chaska_role_ts";
@@ -24,11 +24,6 @@ export default function Page() {
 
   const { tables, loading: tablesLoading } = useTables();
   const { orders, loading: ordersLoading } = useOrders();
-
-  // Ensure Firestore always has at least 12 tables (adds missing ones, never overwrites)
-  useEffect(() => {
-    ensureTablesCount(12).catch(console.error);
-  }, []);
 
   // ── On mount: restore role from localStorage (with expiry check) ────────────
   useEffect(() => {

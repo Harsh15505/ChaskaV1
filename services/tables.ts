@@ -54,6 +54,11 @@ export async function updateTableStatus(
   await updateDoc(doc(db, TABLES_COLLECTION, tableId), { status });
 }
 
+/** Cancel a bill request — sets table back to "active" */
+export async function cancelBillRequest(tableId: string): Promise<void> {
+  await updateDoc(doc(db, TABLES_COLLECTION, tableId), { status: "active" });
+}
+
 /** Link an order ID to a table (or null to clear) */
 export async function setTableCurrentOrder(
   tableId: string,

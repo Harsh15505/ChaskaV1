@@ -11,6 +11,7 @@ import {
   FirestoreOrder,
 } from "@/lib/chaska-data";
 import { createOrder, requestBill, updateOrderItems } from "@/services/orders";
+import { cancelBillRequest } from "@/services/tables";
 import { cn } from "@/lib/utils";
 import { ArrowLeft, ChevronRight, Minus, Plus, ShoppingBag, X, Search } from "lucide-react";
 import { toast } from "sonner";
@@ -209,6 +210,20 @@ export default function OrderScreen({
     } catch (err) {
       console.error(err);
       toast.error("Failed to request bill. Check your connection.");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleCancelBill = async () => {
+    if (sending) return;
+    setSending(true);
+    try {
+      await cancelBillRequest(tableId);
+      toast.success("Bill request cancelled!");
+    } catch (err) {
+      console.error(err);
+      toast.error("Could not cancel. Try again.");
     } finally {
       setSending(false);
     }
@@ -546,6 +561,25 @@ export default function OrderScreen({
           })}
         </div>
       </div>
+
+      {/* Undo Bill Request bar — shown when table is locked (billing status) */}
+      {isLocked && (
+        <div className="fixed bottom-0 left-0 right-0 bg-card border-t-2 border-status-billing px-4 pt-3 pb-6 shadow-2xl">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <p className="text-sm font-extrabold text-status-billing">Bill Requested</p>
+              <p className="text-xs text-muted-foreground">Waiter tapped this by mistake?</p>
+            </div>
+          </div>
+          <button
+            onClick={handleCancelBill}
+            disabled={sending}
+            className="w-full py-4 bg-muted border-2 border-status-billing text-status-billing rounded-2xl font-extrabold text-base active:scale-95 transition-transform disabled:opacity-60 flex items-center justify-center gap-2"
+          >
+            ↩ Undo Bill Request
+          </button>
+        </div>
+      )}
 
       {/* Bottom Cart Section */}
       {(!isLocked && (cart.length > 0 || tableHasActiveOrders)) && (
