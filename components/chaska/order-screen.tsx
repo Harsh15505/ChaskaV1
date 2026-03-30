@@ -1,33 +1,59 @@
 "use client";
 
 import { useState } from "react";
-import { CartItem, MENU_ITEMS, MenuItem, OrderItem, TableStatus } from "@/lib/chaska-data";
-import { createOrder, requestBill } from "@/services/orders";
+import {
+  CartItem,
+  MenuCategory,
+  MENU_ITEMS,
+  MenuItem,
+  OrderItem,
+  TableStatus,
+  FirestoreOrder,
+} from "@/lib/chaska-data";
+import { createOrder, requestBill, updateOrderItems } from "@/services/orders";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, ChevronRight, Minus, Plus, ShoppingBag } from "lucide-react";
+import { ArrowLeft, ChevronRight, Minus, Plus, ShoppingBag, X, Search } from "lucide-react";
 import { toast } from "sonner";
 
 interface OrderScreenProps {
-  tableId: string;         // Firestore doc id, e.g. "table_1"
+  tableId: string;
   tableNumber: number;
   tableStatus: TableStatus;
   existingOrderId: string | null;
+  orders: FirestoreOrder[];
   onBack: () => void;
 }
 
-type Category = "chinese" | "punjabi";
-
-const CATEGORY_TABS: { id: Category; label: string; icon: string }[] = [
-  { id: "chinese", label: "Chinese", icon: "🍜" },
-  { id: "punjabi", label: "Punjabi", icon: "🍛" },
+const CATEGORY_TABS: { id: MenuCategory; label: string; icon: string }[] = [
+  { id: "soup",           label: "Soup",      icon: "🍲" },
+  { id: "chinese",        label: "Chinese",   icon: "🍜" },
+  { id: "paneer",         label: "Paneer",    icon: "🧀" },
+  { id: "veg",            label: "Veg",       icon: "🥘" },
+  { id: "signature",      label: "Signature", icon: "⭐" },
+  { id: "tandoor",        label: "Tandoor",   icon: "🫓" },
+  { id: "dal",            label: "Dal & Rice",icon: "🍚" },
+  { id: "accompaniments", label: "Extras",    icon: "🥤" },
+  { id: "combos",         label: "Combos",    icon: "🎁" },
 ];
+
+const CATEGORY_LABELS: Record<MenuCategory, string> = {
+  soup: "Soup",
+  chinese: "Chinese",
+  paneer: "Paneer",
+  veg: "Veg. Main",
+  signature: "Signature",
+  tandoor: "Tandoor",
+  dal: "Dal & Rice",
+  accompaniments: "Extras",
+  combos: "Combos",
+};
 
 /** Convert CartItem[] to OrderItem[] for Firestore */
 function cartToOrderItems(cart: CartItem[]): OrderItem[] {
   return cart.map((c) => ({
     id: c.item.id,
     name: c.item.name,
-    price: c.item.price,
+    price: c.item.price!,
     quantity: c.quantity,
   }));
 }
@@ -36,21 +62,37 @@ export default function OrderScreen({
   tableId,
   tableNumber,
   tableStatus,
+  orders,
   onBack,
 }: OrderScreenProps) {
-  const [activeCategory, setActiveCategory] = useState<Category>("chinese");
+  const [activeCategory, setActiveCategory] = useState<MenuCategory>("soup");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [sending, setSending] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [editSentModalOpen, setEditSentModalOpen] = useState(false);
+  // Variant picker: holds the base MenuItem whose variants should be displayed
+  const [variantPickerItem, setVariantPickerItem] = useState<MenuItem | null>(null);
 
-  // We DO NOT fetch the existing order anymore. 
-  // Waiter ALWAYS sees a fresh cart for "Round 2".
+  // When searching: show all matches across all categories
+  // When not searching: show items for the active category
+  const filteredItems = searchQuery.trim()
+    ? MENU_ITEMS.filter((item) =>
+        item.name.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : MENU_ITEMS.filter((item) => item.category === activeCategory);
 
-  const filteredItems = MENU_ITEMS.filter(
-    (item) => item.category === activeCategory
-  );
-
+  /** For regular items — look up by exact id */
   const getQuantity = (itemId: string) =>
     cart.find((c) => c.item.id === itemId)?.quantity ?? 0;
+
+  /** For variant items — sum all variant quantities with the base id prefix */
+  const getVariantSummary = (baseId: string) => {
+    const entries = cart.filter((c) => c.item.id.startsWith(baseId + "_"));
+    if (entries.length === 0) return null;
+    return entries
+      .map((e) => `${e.quantity}× ${e.item.id.split("_")[1]}`)
+      .join(", ");
+  };
 
   const addItem = (item: MenuItem) => {
     setCart((prev) => {
@@ -76,24 +118,74 @@ export default function OrderScreen({
     });
   };
 
+  /** Called when user picks a variant from the bottom sheet */
+  const addVariant = (base: MenuItem, label: string, price: number) => {
+    const variantItem: MenuItem = {
+      id: `${base.id}_${label}`,
+      name: `${base.name} (${label})`,
+      price,
+      category: base.category,
+    };
+    addItem(variantItem);
+    setVariantPickerItem(null);
+  };
+
   const totalItems = cart.reduce((sum, c) => sum + c.quantity, 0);
-  const totalPrice = cart.reduce(
-    (sum, c) => sum + c.item.price * c.quantity,
-    0
+  const totalPrice = cart.reduce((sum, c) => sum + c.item.price! * c.quantity, 0);
+
+  const isLocked = tableStatus === "billing";
+  const tableHasActiveOrders = tableStatus === "active";
+
+  // ── Sent Orders Editor Logic ───────────────────────────────────────────────
+  const activeOrders = orders.filter(
+    (o) =>
+      o.tableId === tableId &&
+      (o.status === "pending" || o.status === "preparing")
   );
 
-  // Locked once table moves to 'billing' state
-  const isLocked = tableStatus === "billing";
+  const mergedSentItems = activeOrders.reduce((acc, order) => {
+    order.items.forEach((item) => {
+      const existing = acc.find((i) => i.id === item.id);
+      if (existing) {
+        existing.quantity += item.quantity;
+      } else {
+        acc.push({ ...item });
+      }
+    });
+    return acc;
+  }, [] as OrderItem[]);
 
-  // Check if they placed an order before by checking if table is already active
-  const tableHasActiveOrders = tableStatus === "active";
+  const totalSentQty = mergedSentItems.reduce((sum, i) => sum + i.quantity, 0);
+
+  const handleEditSentQty = async (itemId: string, delta: number) => {
+    // Find an active order containing this item
+    const orderToUpdate = activeOrders.find((o) =>
+      o.items.some((i) => i.id === itemId)
+    );
+    if (!orderToUpdate) return;
+
+    const updated = orderToUpdate.items
+      .map((i) =>
+        i.id === itemId ? { ...i, quantity: i.quantity + delta } : i
+      )
+      .filter((i) => i.quantity > 0);
+
+    try {
+      await updateOrderItems(orderToUpdate.id, updated);
+      // Auto-close modal if last item deleted
+      if (updated.length === 0 && mergedSentItems.length === 1) {
+        setEditSentModalOpen(false);
+      }
+    } catch {
+      toast.error("Failed to update item. Try again.");
+    }
+  };
 
   const handleSendToKitchen = async () => {
     if (cart.length === 0 || sending) return;
     setSending(true);
     try {
       const items = cartToOrderItems(cart);
-      // ALWAYS create a NEW order ticket for the kitchen (Round 1, Round 2, etc.)
       await createOrder(tableId, items);
       toast.success("Order sent to kitchen!");
       onBack();
@@ -122,6 +214,120 @@ export default function OrderScreen({
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
+      {/* ── Variant Picker Bottom Sheet ─────────────────────────────────── */}
+      {variantPickerItem && (
+        <div className="fixed inset-0 z-50 flex items-end">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setVariantPickerItem(null)}
+          />
+          {/* Sheet */}
+          <div className="relative w-full bg-card rounded-t-3xl p-6 space-y-4 shadow-2xl">
+            <div className="flex items-start justify-between">
+              <div>
+                <h2 className="text-xl font-extrabold text-foreground">
+                  {variantPickerItem.name}
+                </h2>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  Choose size
+                </p>
+              </div>
+              <button
+                onClick={() => setVariantPickerItem(null)}
+                className="w-8 h-8 flex items-center justify-center rounded-xl bg-muted"
+              >
+                <X className="w-4 h-4 text-foreground" />
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {variantPickerItem.variants!.map((v) => (
+                <button
+                  key={v.label}
+                  onClick={() =>
+                    addVariant(variantPickerItem, v.label, v.price)
+                  }
+                  className="py-5 bg-primary text-primary-foreground rounded-2xl font-bold flex flex-col items-center gap-1 active:scale-95 transition-transform shadow-md"
+                >
+                  <span className="text-lg">{v.label}</span>
+                  <span className="text-sm opacity-90">₹{v.price}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Edit Sent Orders Modal ─────────────────────────────────────── */}
+      {editSentModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-end">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setEditSentModalOpen(false)}
+          />
+          {/* Sheet */}
+          <div className="relative w-full bg-card rounded-t-3xl p-6 shadow-2xl space-y-4 max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between shrink-0 border-b border-border pb-4">
+              <div>
+                <h2 className="text-xl font-extrabold text-foreground">
+                  Sent to Kitchen
+                </h2>
+                <p className="text-sm text-status-billing mt-0.5 font-bold">
+                  Editing these items adjusts the kitchen order directly
+                </p>
+              </div>
+              <button
+                onClick={() => setEditSentModalOpen(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-xl bg-muted"
+              >
+                <X className="w-4 h-4 text-foreground" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto space-y-3 pb-8">
+              {mergedSentItems.map((item) => (
+                <div
+                  key={item.id}
+                  className="bg-muted rounded-xl p-3 flex items-center justify-between"
+                >
+                  <div className="flex-1 pr-4">
+                    <p className="font-bold text-foreground text-sm uppercase leading-snug">
+                      {item.name}
+                    </p>
+                    <p className="text-secondary font-extrabold text-sm mt-0.5">
+                      ₹{item.price}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-4 bg-background px-3 py-2 rounded-xl shadow-sm">
+                    <button
+                      onClick={() => handleEditSentQty(item.id, -1)}
+                      className="w-8 h-8 flex flex-col items-center justify-center rounded-lg text-primary bg-primary/10 active:scale-90 transition-transform"
+                    >
+                      <Minus className="w-4 h-4" />
+                    </button>
+                    <span className="text-primary font-extrabold text-lg w-4 text-center">
+                      {item.quantity}
+                    </span>
+                    <button
+                      onClick={() => handleEditSentQty(item.id, 1)}
+                      className="w-8 h-8 flex items-center justify-center flex-col rounded-lg text-primary bg-primary/10 active:scale-90 transition-transform"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {mergedSentItems.length === 0 && (
+                <p className="text-muted-foreground font-semibold text-center italic py-4">
+                  No pending items found.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="sticky top-0 z-10 bg-card border-b border-border px-4 py-4 shadow-lg">
         <div className="flex items-center gap-3">
@@ -145,6 +351,15 @@ export default function OrderScreen({
               Bill Requested
             </span>
           )}
+          {tableHasActiveOrders && !isLocked && totalSentQty > 0 && (
+            <button
+              onClick={() => setEditSentModalOpen(true)}
+              className="flex items-center gap-1.5 bg-orange-100 text-orange-700 font-bold px-3 py-1.5 rounded-full active:scale-95 transition-transform shadow-sm"
+            >
+              <span className="text-sm font-extrabold tracking-wide">{totalSentQty} sent</span>
+              <span className="text-[10px] uppercase font-extrabold ml-1 bg-orange-200 px-1.5 rounded text-orange-800">Edit</span>
+            </button>
+          )}
           {totalItems > 0 && !isLocked && (
             <div className="flex items-center gap-1.5 bg-primary/20 text-primary px-3 py-1.5 rounded-full">
               <ShoppingBag className="w-4 h-4" />
@@ -154,25 +369,46 @@ export default function OrderScreen({
         </div>
       </header>
 
-      {/* Category Tabs */}
-      <div className="px-4 pt-4 pb-2">
-        <div className="flex gap-2 bg-muted p-1 rounded-xl">
-          {CATEGORY_TABS.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveCategory(tab.id)}
-              className={cn(
-                "flex-1 flex items-center justify-center gap-2 py-3 rounded-lg",
-                "text-sm font-bold transition-all duration-150",
-                activeCategory === tab.id
-                  ? "bg-primary text-primary-foreground shadow-md"
-                  : "text-muted-foreground active:bg-card"
-              )}
-            >
-              <span>{tab.icon}</span>
-              <span>{tab.label}</span>
+      {/* Category Tabs — horizontal scroll (hidden when searching) */}
+      {!searchQuery && (
+        <div className="px-4 pt-4 pb-2 overflow-x-auto">
+          <div className="flex gap-2 w-max">
+            {CATEGORY_TABS.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveCategory(tab.id)}
+                className={cn(
+                  "flex items-center gap-1.5 px-4 py-2.5 rounded-xl whitespace-nowrap",
+                  "text-sm font-bold transition-all duration-150",
+                  activeCategory === tab.id
+                    ? "bg-primary text-primary-foreground shadow-md"
+                    : "bg-muted text-muted-foreground active:bg-card"
+                )}
+              >
+                <span>{tab.icon}</span>
+                <span>{tab.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Search Bar */}
+      <div className="px-4 pb-2 pt-2">
+        <div className="flex items-center gap-2 bg-muted rounded-xl px-3 py-2.5">
+          <Search className="w-4 h-4 text-muted-foreground shrink-0" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search menu..."
+            className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none font-medium"
+          />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery("")}>
+              <X className="w-4 h-4 text-muted-foreground" />
             </button>
-          ))}
+          )}
         </div>
       </div>
 
@@ -180,76 +416,110 @@ export default function OrderScreen({
       <div className="flex-1 px-4 py-3 pb-56">
         <div className="grid grid-cols-2 gap-3">
           {filteredItems.map((item) => {
-            const qty = getQuantity(item.id);
-              return (
-                <div
-                  key={item.id}
-                  className={cn(
-                    "bg-card border-2 rounded-2xl p-4 flex flex-col gap-3 shadow-md transition-all",
-                    qty > 0 ? "border-primary/50" : "border-border"
-                  )}
-                >
-                  <div className="flex-1">
-                    <p className="font-bold text-foreground text-sm leading-tight text-balance">
-                      {item.name}
+            const isVariant = !!item.variants;
+            const qty = isVariant ? 0 : getQuantity(item.id);
+            const variantSummary = isVariant
+              ? getVariantSummary(item.id)
+              : null;
+            const hasVariantInCart = !!variantSummary;
+
+            return (
+              <div
+                key={item.id}
+                className={cn(
+                  "bg-card border-2 rounded-2xl p-4 flex flex-col gap-3 shadow-md transition-all",
+                  (qty > 0 || hasVariantInCart)
+                    ? "border-primary/50"
+                    : "border-border"
+                )}
+              >
+                <div className="flex-1">
+                  <p className="font-bold text-foreground text-sm leading-tight text-balance">
+                    {item.name}
+                  </p>
+                  {/* Category badge shown only in search results */}
+                  {searchQuery && (
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide mt-0.5">
+                      {CATEGORY_LABELS[item.category]}
                     </p>
+                  )}
+                  {isVariant ? (
+                    <p className="text-muted-foreground text-xs font-semibold mt-1">
+                      ₹{item.variants![0].price}–₹
+                      {item.variants![item.variants!.length - 1].price}
+                    </p>
+                  ) : (
                     <p className="text-primary font-extrabold text-base mt-1">
                       ₹{item.price}
                     </p>
+                  )}
+                </div>
+
+                {isLocked ? (
+                  <div className="py-2 text-center text-xs text-muted-foreground font-semibold">
+                    {hasVariantInCart ? variantSummary : qty > 0 ? `${qty} ordered` : "—"}
                   </div>
-                  {isLocked ? (
-                    <div className="py-2 text-center text-xs text-muted-foreground font-semibold">
-                      {qty > 0 ? `${qty} ordered` : "—"}
-                    </div>
-                  ) : qty === 0 ? (
+                ) : isVariant ? (
+                  // Variant item: always show Add button + summary below
+                  <div className="space-y-1.5">
                     <button
-                      onClick={() => addItem(item)}
+                      onClick={() => setVariantPickerItem(item)}
                       className="w-full py-2.5 bg-primary text-primary-foreground rounded-xl font-bold text-sm active:scale-95 transition-transform"
                     >
                       Add
                     </button>
-                  ) : (
-                    <div className="flex items-center justify-between bg-primary/10 rounded-xl px-2 py-1">
-                      <button
-                        onClick={() => removeItem(item.id)}
-                        className="w-8 h-8 flex items-center justify-center rounded-lg text-primary active:scale-90 transition-transform"
-                        aria-label={`Remove one ${item.name}`}
-                      >
-                        <Minus className="w-4 h-4" />
-                      </button>
-                      <span className="text-primary font-extrabold text-lg">
-                        {qty}
-                      </span>
-                      <button
-                        onClick={() => addItem(item)}
-                        className="w-8 h-8 flex items-center justify-center rounded-lg text-primary active:scale-90 transition-transform"
-                        aria-label={`Add one more ${item.name}`}
-                      >
-                        <Plus className="w-4 h-4" />
-                      </button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                    {variantSummary && (
+                      <p className="text-center text-xs font-semibold text-primary">
+                        {variantSummary} in cart
+                      </p>
+                    )}
+                  </div>
+                ) : qty === 0 ? (
+                  <button
+                    onClick={() => addItem(item)}
+                    className="w-full py-2.5 bg-primary text-primary-foreground rounded-xl font-bold text-sm active:scale-95 transition-transform"
+                  >
+                    Add
+                  </button>
+                ) : (
+                  <div className="flex items-center justify-between bg-primary/10 rounded-xl px-2 py-1">
+                    <button
+                      onClick={() => removeItem(item.id)}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg text-primary active:scale-90 transition-transform"
+                      aria-label={`Remove one ${item.name}`}
+                    >
+                      <Minus className="w-4 h-4" />
+                    </button>
+                    <span className="text-primary font-extrabold text-lg">{qty}</span>
+                    <button
+                      onClick={() => addItem(item)}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg text-primary active:scale-90 transition-transform"
+                      aria-label={`Add one more ${item.name}`}
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {/* Bottom Cart Section */}
       {(!isLocked && (cart.length > 0 || tableHasActiveOrders)) && (
         <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border px-4 pt-3 pb-6 shadow-2xl space-y-3">
-          {/* Cart items summary only if cart has items */}
           {cart.length > 0 && (
             <>
               <div className="max-h-24 overflow-y-auto space-y-1.5">
                 {cart.map((c) => (
                   <div key={c.item.id} className="flex items-center justify-between">
                     <span className="text-sm text-muted-foreground">
-                      <span className="text-primary font-bold">{c.quantity}x</span>{" "}
+                      <span className="text-primary font-bold">{c.quantity}×</span>{" "}
                       {c.item.name}
                     </span>
                     <span className="text-sm font-semibold text-foreground">
-                      ₹{c.item.price * c.quantity}
+                      ₹{c.item.price! * c.quantity}
                     </span>
                   </div>
                 ))}
@@ -268,8 +538,7 @@ export default function OrderScreen({
               <button
                 onClick={handleRequestBill}
                 disabled={sending}
-                className="flex-[1] py-4 bg-status-billing border-2 border-status-billing text-status-billing-foreground rounded-2xl font-extrabold text-base flex items-center justify-center active:scale-95 transition-transform shadow-lg disabled:opacity-60"
-                style={{ color: "white" }}
+                className="flex-[1] py-4 bg-status-billing border-2 border-status-billing text-white rounded-2xl font-extrabold text-base flex items-center justify-center active:scale-95 transition-transform shadow-lg disabled:opacity-60"
               >
                 Request Bill
               </button>

@@ -3,7 +3,7 @@ import { CapacitorConfig } from "@capacitor/cli";
 const config: CapacitorConfig = {
   // Unique app identifier — used as Android package name
   appId: "com.chaska.pos",
-  appName: "Chaska",
+  appName: "Chaska Punjabi",
   // Next.js static export goes into out/
   webDir: "out",
   android: {

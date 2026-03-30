@@ -5,50 +5,52 @@
 
 :root {
   /* ═══════════════════════════════════════════════════════
-     BRAND COLORS — Edit these when client sends palette
-     Current theme: Dark background + Yellow primary + Green secondary
+     BRAND COLORS — Chaska Light Cyan Theme
+     White/sky background · Electric cyan primary · Deep navy text
      ═══════════════════════════════════════════════════════ */
 
-  --background: oklch(0.12 0 0);       /* Main background — nearly black */
-  --foreground: oklch(0.96 0 0);       /* Main text — nearly white */
-  --card: oklch(0.17 0 0);             /* Card/panel backgrounds */
-  --card-foreground: oklch(0.96 0 0);
-  --popover: oklch(0.17 0 0);
-  --popover-foreground: oklch(0.96 0 0);
+  --background: oklch(0.97 0.008 220);      /* Light sky white */
+  --foreground: oklch(0.18 0.04 242);       /* Deep navy text */
+  --card: oklch(1.0 0.00 0);               /* Pure white cards */
+  --card-foreground: oklch(0.18 0.04 242);
+  --popover: oklch(1.0 0.00 0);
+  --popover-foreground: oklch(0.18 0.04 242);
 
-  /* PRIMARY — the main brand/accent color (buttons, highlights) */
-  --primary: oklch(0.87 0.19 95);      /* Yellow — swap this for client's main color */
-  --primary-foreground: oklch(0.12 0 0);
+  /* PRIMARY — Electric cyan-blue (buttons, highlights, active states) */
+  --primary: oklch(0.58 0.20 222);          /* Rich cyan-blue */
+  --primary-foreground: oklch(1.0 0.00 0);  /* White text on primary */
 
-  /* SECONDARY — success/confirm color (Clear Table button, free status) */
-  --secondary: oklch(0.65 0.2 145);   /* Green — swap for client's secondary color */
-  --secondary-foreground: oklch(0.12 0 0);
+  /* SECONDARY — Teal (success, Clear Table, free status) */
+  --secondary: oklch(0.55 0.16 183);        /* Deep teal */
+  --secondary-foreground: oklch(1.0 0.00 0);
 
-  --muted: oklch(0.22 0 0);
-  --muted-foreground: oklch(0.58 0 0);
-  --accent: oklch(0.87 0.19 95);
-  --accent-foreground: oklch(0.12 0 0);
-  --destructive: oklch(0.55 0.22 25); /* Red — for errors and Bill Requested badges */
-  --destructive-foreground: oklch(0.96 0 0);
-  --border: oklch(0.26 0 0);
-  --input: oklch(0.22 0 0);
-  --ring: oklch(0.87 0.19 95);
+  --muted: oklch(0.92 0.015 218);           /* Light blue-gray */
+  --muted-foreground: oklch(0.48 0.05 228); /* Medium blue-gray text */
+  --accent: oklch(0.58 0.20 222);
+  --accent-foreground: oklch(1.0 0.00 0);
+  --destructive: oklch(0.58 0.22 25);       /* Red for errors */
+  --destructive-foreground: oklch(1.0 0.00 0);
+  --border: oklch(0.87 0.02 220);           /* Soft blue-gray border */
+  --input: oklch(0.92 0.015 218);
+  --ring: oklch(0.58 0.20 222);
   --radius: 0.75rem;
 
-  /* STATUS COLORS — table and order state indicators */
-  --status-free: oklch(0.65 0.2 145);    /* Green — table is free */
-  --status-active: oklch(0.87 0.19 95);  /* Yellow — table has an active order */
-  --status-billing: oklch(0.55 0.22 25); /* Red/orange — bill requested */
+  /* STATUS COLORS — must be instantly distinct in a fast-paced environment */
+  --status-free: oklch(0.65 0.25 145);      /* 🟢 Vivid green — table is free */
+  --status-active: oklch(0.52 0.22 250);    /* 🔵 Clear blue — active order */
+  --status-billing: oklch(0.60 0.26 25);    /* 🔴 Strong red-orange — bill requested */
+  --status-free-foreground: oklch(1.0 0.00 0);
+  --status-billing-foreground: oklch(1.0 0.00 0);
 
   /* Sidebar */
-  --sidebar: oklch(0.15 0 0);
-  --sidebar-foreground: oklch(0.96 0 0);
-  --sidebar-primary: oklch(0.87 0.19 95);
-  --sidebar-primary-foreground: oklch(0.12 0 0);
-  --sidebar-accent: oklch(0.22 0 0);
-  --sidebar-accent-foreground: oklch(0.96 0 0);
-  --sidebar-border: oklch(0.26 0 0);
-  --sidebar-ring: oklch(0.87 0.19 95);
+  --sidebar: oklch(0.94 0.012 220);
+  --sidebar-foreground: oklch(0.18 0.04 242);
+  --sidebar-primary: oklch(0.58 0.20 222);
+  --sidebar-primary-foreground: oklch(1.0 0.00 0);
+  --sidebar-accent: oklch(0.90 0.018 218);
+  --sidebar-accent-foreground: oklch(0.18 0.04 242);
+  --sidebar-border: oklch(0.87 0.02 220);
+  --sidebar-ring: oklch(0.58 0.20 222);
 }
 
 @theme inline {

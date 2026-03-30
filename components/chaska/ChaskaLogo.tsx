@@ -1,101 +1,101 @@
+"use client";
+
 /**
  * ChaskaLogo.tsx
+ * SVG logo matching the official Chaska brand.
  *
- * SVG logo component matching the official Chaska brand:
- *   - Double-ring circle emblem with Devanagari "च" inside
- *   - "CHASKA" in serif tracking below
+ * Structure:
+ *   - Outer double-ring circle (dark)
+ *   - Inner filled dark circle with horizontal divider
+ *   - "च" Devanagari character in WHITE on dark circle
+ *   - "CHASKA" wide-spaced serif below
  *   - "PUNJABI | CHINESE" tagline
- *
- * Works on dark backgrounds (app theme).
  */
 
 interface ChaskaLogoProps {
-  /** Height of the full logo. Width scales proportionally. */
   size?: number;
-  /** Color of the emblem ring and text. Defaults to white for dark backgrounds. */
-  color?: string;
-  /** Accent color for tagline. Defaults to the app primary (yellow). */
+  /** Outer ring + text color. Defaults to dark navy (for light backgrounds). */
+  ringColor?: string;
+  /** Accent color for tagline. Defaults to cyan. */
   accentColor?: string;
-  /** Whether to show the text below the emblem. Default true. */
+  /** Background color for the double-ring spacer. Defaults to white. */
+  bgColor?: string;
   showText?: boolean;
 }
 
 export default function ChaskaLogo({
   size = 120,
-  color = "#FFFFFF",
-  accentColor = "oklch(0.87 0.19 95)",
+  ringColor = "oklch(0.18 0.04 242)",
+  accentColor = "oklch(0.58 0.20 222)",
+  bgColor = "oklch(0.97 0.008 220)", // matches app background
   showText = true,
 }: ChaskaLogoProps) {
-  // Emblem viewbox is 100×100, full logo with text is 100×155
-  const viewH = showText ? 155 : 100;
+  const W = 180;
+  const emblemH = 100;
+  const totalH = showText ? 148 : emblemH;
+  const cx = W / 2; // 90
+
+  const scale = size / totalH;
+  const displayW = W * scale;
 
   return (
     <svg
-      viewBox={`0 0 100 ${viewH}`}
-      width={size * (100 / viewH)}
+      viewBox={`0 0 ${W} ${totalH}`}
+      width={displayW}
       height={size}
       xmlns="http://www.w3.org/2000/svg"
       aria-label="Chaska — Punjabi | Chinese"
       role="img"
     >
-      {/* ── Emblem ─────────────────────────────────────────────────────── */}
-      {/* Outer ring */}
-      <circle cx="50" cy="50" r="48" fill="none" stroke={color} strokeWidth="3.5" />
-      {/* Inner filled circle */}
-      <circle cx="50" cy="50" r="40" fill={color} />
-      {/* Horizontal divider line — white stripe across the inner circle */}
-      <rect x="10" y="46.5" width="80" height="7" fill="none" />
+      {/* ── Emblem ─────────────────────────────────────── */}
 
-      {/* "च" character — rendered as SVG text using system Devanagari font */}
-      {/* 
-          We use a <foreignObject> fallback approach: render as SVG text.
-          The font stack prioritises Noto Sans Devanagari which is available
-          on all modern Android and iOS/macOS devices.
-      */}
+      {/* Outer thin ring */}
+      <circle cx={cx} cy="50" r="47" fill="none" stroke={ringColor} strokeWidth="2.5" />
+      {/* White spacer to create double-ring effect */}
+      <circle cx={cx} cy="50" r="43" fill="none" stroke={bgColor} strokeWidth="3" />
+      {/* Inner filled circle */}
+      <circle cx={cx} cy="50" r="40" fill={ringColor} />
+
+      {/* "च" Devanagari — centered in the circle */}
       <text
-        x="50"
-        y="67"
+        x={cx}
+        y="64"
         textAnchor="middle"
-        fontSize="52"
+        dominantBaseline="middle"
+        fontSize="46"
         fontFamily="'Noto Sans Devanagari', 'Mangal', 'Arial Unicode MS', sans-serif"
         fontWeight="700"
-        fill="none"
-        stroke="#1a1a1a"
-        strokeWidth="0"
-        style={{ fill: "oklch(0.12 0 0)" }}
+        fill="white"
       >
         च
       </text>
 
-      {/* Horizontal line cutting through the circle (part of emblem design) */}
-      <line x1="12" y1="46" x2="88" y2="46" stroke="oklch(0.12 0 0)" strokeWidth="5" />
-
-      {/* ── Text below emblem ───────────────────────────────────────────── */}
+      {/* ── Text below emblem ───────────────────────────── */}
       {showText && (
         <>
-          {/* "CHASKA" — wide-spaced serif */}
+          {/* "CHASKA" */}
           <text
-            x="50"
-            y="115"
+            x={cx}
+            y="118"
             textAnchor="middle"
-            fontSize="18"
+            fontSize="22"
             fontFamily="'Georgia', 'Times New Roman', serif"
             fontWeight="700"
-            letterSpacing="4"
-            fill={color}
+            letterSpacing="5"
+            fill={ringColor}
           >
             CHASKA
           </text>
 
-          {/* "PUNJABI | CHINESE" tagline */}
+          {/* "PUNJABI | CHINESE" */}
           <text
-            x="50"
-            y="128"
+            x={cx}
+            y="133"
             textAnchor="middle"
-            fontSize="7"
+            fontSize="8"
             fontFamily="'Inter', 'Arial', sans-serif"
             fontWeight="700"
-            letterSpacing="2.5"
+            letterSpacing="2"
             fill={accentColor}
           >
             PUNJABI | CHINESE

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { FirestoreOrder } from "@/lib/chaska-data";
 import { markOrderServed } from "@/services/orders";
+import { cn } from "@/lib/utils";
 import { Clock, ChefHat } from "lucide-react";
 import { toast } from "sonner";
 
@@ -43,7 +44,13 @@ export default function KitchenScreen({ orders, loading }: KitchenScreenProps) {
     setMarking(order.id);
     try {
       await markOrderServed(order.id, order.tableId);
-      toast.success(`Table ${order.tableId.replace("table_", "")} marked done!`);
+      const label =
+        order.tableId === "TAKEAWAY" || order.orderType === "takeaway"
+          ? order.tableId === "TAKEAWAY"
+            ? "Takeaway"
+            : `Table ${order.tableId.replace("table_", "")} Takeaway`
+          : `Table ${order.tableId.replace("table_", "")}`;
+      toast.success(`${label} marked done!`);
     } catch (err) {
       console.error(err);
       toast.error("Failed to update order. Try again.");
@@ -98,7 +105,11 @@ export default function KitchenScreen({ orders, loading }: KitchenScreenProps) {
         ) : (
           <div className="space-y-4">
             {active.map((order) => {
-              const tableNum = order.tableId.replace("table_", "");
+              const isTakeaway =
+                order.orderType === "takeaway" || order.tableId === "TAKEAWAY";
+              const tableNum = order.tableId === "TAKEAWAY"
+                ? null
+                : order.tableId.replace("table_", "");
               const orderTotal = order.items.reduce(
                 (s, i) => s + i.price * i.quantity,
                 0
@@ -106,16 +117,42 @@ export default function KitchenScreen({ orders, loading }: KitchenScreenProps) {
               return (
                 <div
                   key={order.id}
-                  className="bg-card border-2 border-primary/20 rounded-2xl overflow-hidden shadow-md"
+                  className={cn(
+                    "border-2 rounded-2xl overflow-hidden shadow-md",
+                    isTakeaway
+                      ? "bg-orange-50 border-orange-400"
+                      : "bg-card border-primary/20"
+                  )}
                 >
                   {/* Order header */}
-                  <div className="flex items-center justify-between bg-primary/10 px-4 py-3">
+                  <div
+                    className={cn(
+                      "flex items-center justify-between px-4 py-3",
+                      isTakeaway ? "bg-orange-100" : "bg-primary/10"
+                    )}
+                  >
                     <div className="flex items-center gap-2">
-                      <span className="text-2xl font-extrabold text-primary">
-                        T{tableNum}
+                      <span
+                        className={cn(
+                          "text-2xl font-extrabold",
+                          isTakeaway ? "text-orange-600" : "text-primary"
+                        )}
+                      >
+                        {isTakeaway ? "🛍️" : `T${tableNum}`}
                       </span>
-                      <span className="bg-primary/20 text-primary text-xs font-bold px-2 py-0.5 rounded-full">
-                        Table {tableNum}
+                      <span
+                        className={cn(
+                          "text-xs font-bold px-2 py-0.5 rounded-full",
+                          isTakeaway
+                            ? "bg-orange-200 text-orange-700"
+                            : "bg-primary/20 text-primary"
+                        )}
+                      >
+                        {isTakeaway
+                          ? tableNum
+                            ? `Table ${tableNum} — Takeaway`
+                            : "Takeaway"
+                          : `Table ${tableNum}`}
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5 text-muted-foreground text-xs">

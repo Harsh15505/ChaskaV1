@@ -16,20 +16,20 @@ const STATUS_CONFIG: Record<
   free: {
     label: "Free",
     dot: "bg-status-free",
-    card: "border-status-free/30 hover:border-status-free",
-    text: "text-status-free",
+    card: "border-status-free bg-green-50 hover:bg-green-100",
+    text: "text-status-free font-bold",
   },
   active: {
     label: "Active",
     dot: "bg-status-active",
-    card: "border-status-active/30 hover:border-status-active",
-    text: "text-status-active",
+    card: "border-status-active bg-blue-50 hover:bg-blue-100",
+    text: "text-status-active font-bold",
   },
   billing: {
     label: "Bill Pending",
-    dot: "bg-status-billing",
-    card: "border-status-billing/30 hover:border-status-billing",
-    text: "text-status-billing",
+    dot: "bg-status-billing animate-pulse",
+    card: "border-status-billing bg-red-50 hover:bg-red-100",
+    text: "text-status-billing font-bold",
   },
 };
 

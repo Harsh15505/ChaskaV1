@@ -14,6 +14,7 @@ interface ReceiptPreviewProps {
   onClose: () => void;
   onClear: () => void;
   clearing: boolean;
+  onRequestBillNumber?: () => Promise<string>;
 }
 
 export default function ReceiptPreview({
@@ -21,6 +22,7 @@ export default function ReceiptPreview({
   onClose,
   onClear,
   clearing,
+  onRequestBillNumber,
 }: ReceiptPreviewProps) {
   const { tableNumber, items, totalAmount, time, upiString, billNumber } = receiptData;
 
@@ -48,7 +50,13 @@ export default function ReceiptPreview({
     }
     setPrinting(true);
     try {
-      await printReceipt(receiptData, printerAddress);
+      let printBillNumber = billNumber;
+      if (printBillNumber === "PENDING" && onRequestBillNumber) {
+        printBillNumber = await onRequestBillNumber();
+      }
+      
+      const printData = { ...receiptData, billNumber: printBillNumber };
+      await printReceipt(printData, printerAddress);
       toast.success("Receipt printed!");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Print failed";

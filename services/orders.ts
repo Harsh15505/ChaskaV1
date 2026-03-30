@@ -31,6 +31,7 @@ function toOrder(id: string, data: Record<string, unknown>): FirestoreOrder {
     tableId: data.tableId as string,
     items: data.items as OrderItem[],
     status: data.status as OrderStatus,
+    orderType: data.orderType as "takeaway" | undefined,
     createdAt: (data.createdAt as Timestamp)?.toDate() ?? new Date(),
     updatedAt: (data.updatedAt as Timestamp)?.toDate() ?? new Date(),
   };
@@ -95,6 +96,27 @@ export async function createOrder(
 
   await updateTableStatus(tableId, "active");
 
+  return ref.id;
+}
+
+/**
+ * Create a takeaway order linked to the given table.
+ * Visible in the kitchen with an orange "TAKEAWAY" badge.
+ * Automatically merges into that table's bill.
+ * Does NOT change the table's status.
+ */
+export async function createTakeawayOrder(
+  tableId: string,
+  items: OrderItem[]
+): Promise<string> {
+  const ref = await addDoc(collection(db, ORDERS_COLLECTION), {
+    tableId,
+    orderType: "takeaway",
+    items,
+    status: "pending",
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
   return ref.id;
 }
 

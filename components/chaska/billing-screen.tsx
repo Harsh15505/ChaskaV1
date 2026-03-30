@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { FirestoreOrder, FirestoreTable, MENU_ITEMS, MenuItem } from "@/lib/chaska-data";
-import { clearTable, updateOrderItems } from "@/services/orders";
+import { FirestoreOrder, FirestoreTable, MenuCategory, MENU_ITEMS, MenuItem } from "@/lib/chaska-data";
+import { clearTable, updateOrderItems, createTakeawayOrder } from "@/services/orders";
 import { getNextBillNumber } from "@/services/billing-counter";
 import { generateReceipt } from "@/lib/receipt";
 import type { ReceiptData } from "@/lib/receipt";
@@ -16,6 +16,8 @@ import {
   ShoppingBag,
   ChevronDown,
   ChevronUp,
+  X,
+  Search,
 } from "lucide-react";
 import { toast } from "sonner";
 import ReceiptPreview from "@/components/chaska/ReceiptPreview";
@@ -34,12 +36,29 @@ interface TakeawayItem {
   quantity: number;
 }
 
-type MenuCategory = "chinese" | "punjabi";
-
 const CATEGORY_TABS: { id: MenuCategory; label: string; icon: string }[] = [
-  { id: "chinese", label: "Chinese", icon: "🍜" },
-  { id: "punjabi", label: "Punjabi", icon: "🍛" },
+  { id: "soup",           label: "Soup",      icon: "🍲" },
+  { id: "chinese",        label: "Chinese",   icon: "🍜" },
+  { id: "paneer",         label: "Paneer",    icon: "🧀" },
+  { id: "veg",            label: "Veg",       icon: "🥘" },
+  { id: "signature",      label: "Signature", icon: "⭐" },
+  { id: "tandoor",        label: "Tandoor",   icon: "🫓" },
+  { id: "dal",            label: "Dal & Rice",icon: "🍚" },
+  { id: "accompaniments", label: "Extras",    icon: "🥤" },
+  { id: "combos",         label: "Combos",    icon: "🎁" },
 ];
+
+const CATEGORY_LABELS: Record<MenuCategory, string> = {
+  soup: "Soup",
+  chinese: "Chinese",
+  paneer: "Paneer",
+  veg: "Veg. Main",
+  signature: "Signature",
+  tandoor: "Tandoor",
+  dal: "Dal & Rice",
+  accompaniments: "Extras",
+  combos: "Combos",
+};
 
 export default function BillingScreen({
   tables,
@@ -50,13 +69,17 @@ export default function BillingScreen({
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
   const [clearing, setClearing] = useState(false);
+  const [sendingToKitchen, setSendingToKitchen] = useState(false);
   // Bill number is assigned once per table session — reused if Generate Bill is tapped again
   const [billNumberForTable, setBillNumberForTable] = useState<string | null>(null);
 
   // ── Takeaway state ───────────────────────────────────────────────────────
   const [takeawayOpen, setTakeawayOpen] = useState(false);
   const [takeawayCart, setTakeawayCart] = useState<TakeawayItem[]>([]);
-  const [activeCategory, setActiveCategory] = useState<MenuCategory>("chinese");
+  const [activeCategory, setActiveCategory] = useState<MenuCategory>("soup");
+  const [takeawaySearch, setTakeawaySearch] = useState("");
+  // Variant picker for takeaway
+  const [takeawayVariantItem, setTakeawayVariantItem] = useState<MenuItem | null>(null);
 
   const activeTables = tables.filter(
     (t) => t.status === "active" || t.status === "billing"
@@ -105,8 +128,30 @@ export default function BillingScreen({
           c.id === item.id ? { ...c, quantity: c.quantity + 1 } : c
         );
       }
-      return [...prev, { id: item.id, name: item.name, price: item.price, quantity: 1 }];
+      return [...prev, { id: item.id, name: item.name, price: item.price!, quantity: 1 }];
     });
+  };
+
+  /** Add a specific variant of an item to takeaway cart */
+  const addTakeawayVariant = (base: MenuItem, label: string, price: number) => {
+    const variantId = `${base.id}_${label}`;
+    const variantName = `${base.name} (${label})`;
+    setTakeawayCart((prev) => {
+      const existing = prev.find((c) => c.id === variantId);
+      if (existing) {
+        return prev.map((c) =>
+          c.id === variantId ? { ...c, quantity: c.quantity + 1 } : c
+        );
+      }
+      return [...prev, { id: variantId, name: variantName, price, quantity: 1 }];
+    });
+    setTakeawayVariantItem(null);
+  };
+
+  const getTakeawayVariantSummary = (baseId: string) => {
+    const entries = takeawayCart.filter((c) => c.id.startsWith(baseId + "_"));
+    if (entries.length === 0) return null;
+    return entries.map((e) => `${e.quantity}× ${e.id.split("_")[1]}`).join(", ");
   };
 
   const removeTakeaway = (itemId: string) => {
@@ -120,7 +165,11 @@ export default function BillingScreen({
     });
   };
 
-  const filteredMenu = MENU_ITEMS.filter((i) => i.category === activeCategory);
+  const filteredMenu = takeawaySearch.trim()
+    ? MENU_ITEMS.filter((i) =>
+        i.name.toLowerCase().includes(takeawaySearch.toLowerCase())
+      )
+    : MENU_ITEMS.filter((i) => i.category === activeCategory);
 
   // ── Edit table order items ───────────────────────────────────────────────
 
@@ -149,7 +198,7 @@ export default function BillingScreen({
     if (selectedOrders.length === 0 && takeawayCart.length === 0) return;
     if (!selectedTable) return;
     try {
-      // Only fetch a new bill number if one hasn't been assigned for this table session yet
+      // Fetch a bill number on first call; reuse it on subsequent opens for same table
       const billNum = billNumberForTable ?? await getNextBillNumber();
       if (!billNumberForTable) setBillNumberForTable(billNum);
       setReceipt(
@@ -157,7 +206,32 @@ export default function BillingScreen({
       );
     } catch (err) {
       console.error(err);
-      toast.error("Failed to generate bill number. Try again.");
+      toast.error("Failed to generate bill. Try again.");
+    }
+  };
+
+  // ── Send takeaway to kitchen ─────────────────────────────────────────────
+
+  const handleSendTakeawayToKitchen = async () => {
+    if (takeawayCart.length === 0 || sendingToKitchen || !selectedTableId) return;
+    setSendingToKitchen(true);
+    try {
+      const items = takeawayCart.map((i) => ({
+        id: i.id,
+        name: i.name,
+        price: i.price,
+        quantity: i.quantity,
+      }));
+      await createTakeawayOrder(selectedTableId, items);
+      // Clear local cart — items now live in Firestore linked to this table
+      setTakeawayCart([]);
+      setTakeawayOpen(false);
+      toast.success("Takeaway order sent to kitchen!");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to send to kitchen. Try again.");
+    } finally {
+      setSendingToKitchen(false);
     }
   };
 
@@ -187,6 +261,43 @@ export default function BillingScreen({
 
   return (
     <>
+      {/* ── Takeaway Variant Picker ────────────────────────────────────────── */}
+      {takeawayVariantItem && (
+        <div className="fixed inset-0 z-50 flex items-end">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setTakeawayVariantItem(null)}
+          />
+          <div className="relative w-full bg-card rounded-t-3xl p-6 space-y-4 shadow-2xl">
+            <div className="flex items-start justify-between">
+              <div>
+                <h2 className="text-xl font-extrabold text-foreground">
+                  {takeawayVariantItem.name}
+                </h2>
+                <p className="text-sm text-muted-foreground mt-0.5">Choose size</p>
+              </div>
+              <button
+                onClick={() => setTakeawayVariantItem(null)}
+                className="w-8 h-8 flex items-center justify-center rounded-xl bg-muted"
+              >
+                <X className="w-4 h-4 text-foreground" />
+              </button>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {takeawayVariantItem.variants!.map((v) => (
+                <button
+                  key={v.label}
+                  onClick={() => addTakeawayVariant(takeawayVariantItem, v.label, v.price)}
+                  className="py-5 bg-secondary text-secondary-foreground rounded-2xl font-bold flex flex-col items-center gap-1 active:scale-95 transition-transform shadow-md"
+                >
+                  <span className="text-lg">{v.label}</span>
+                  <span className="text-sm opacity-90">₹{v.price}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
       {/* ── Receipt overlay ─────────────────────────────────────────────── */}
       {receipt && (
         <ReceiptPreview
@@ -194,6 +305,22 @@ export default function BillingScreen({
           onClose={() => setReceipt(null)}
           onClear={handleClearTable}
           clearing={clearing}
+          onRequestBillNumber={async () => {
+            if (billNumberForTable) return billNumberForTable;
+            try {
+              const billNum = await getNextBillNumber();
+              setBillNumberForTable(billNum);
+              // Update the receipt state so the preview updates too
+              setReceipt(
+                generateReceipt(selectedOrders, selectedTable!.tableNumber, takeawayCart, billNum)
+              );
+              return billNum;
+            } catch (err) {
+              console.error(err);
+              toast.error("Failed to assign bill number.");
+              throw err;
+            }
+          }}
         />
       )}
 
@@ -378,49 +505,115 @@ export default function BillingScreen({
 
               {takeawayOpen && (
                 <div className="border-t border-border">
-                  {/* Category Tabs */}
-                  <div className="px-3 pt-3 pb-2">
-                    <div className="flex gap-2 bg-muted p-1 rounded-xl">
-                      {CATEGORY_TABS.map((tab) => (
-                        <button
-                          key={tab.id}
-                          onClick={() => setActiveCategory(tab.id)}
-                          className={cn(
-                            "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg",
-                            "text-sm font-bold transition-all",
-                            activeCategory === tab.id
-                              ? "bg-primary text-primary-foreground shadow-md"
-                              : "text-muted-foreground"
-                          )}
-                        >
-                          <span>{tab.icon}</span>
-                          <span>{tab.label}</span>
+                  {/* Search bar */}
+                  <div className="px-3 pt-3 pb-1">
+                    <div className="flex items-center gap-2 bg-muted rounded-xl px-3 py-2.5">
+                      <Search className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                      <input
+                        type="text"
+                        value={takeawaySearch}
+                        onChange={(e) => setTakeawaySearch(e.target.value)}
+                        placeholder="Search menu..."
+                        className="flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground outline-none font-medium"
+                      />
+                      {takeawaySearch && (
+                        <button onClick={() => setTakeawaySearch("")}>
+                          <X className="w-3.5 h-3.5 text-muted-foreground" />
                         </button>
-                      ))}
+                      )}
                     </div>
                   </div>
+
+                  {/* Category Tabs — horizontal scroll */}
+                  {!takeawaySearch && (
+                    <div className="px-3 pt-3 pb-2 overflow-x-auto">
+                      <div className="flex gap-2 w-max">
+                        {CATEGORY_TABS.map((tab) => (
+                          <button
+                            key={tab.id}
+                            onClick={() => setActiveCategory(tab.id)}
+                            className={cn(
+                              "flex items-center gap-1.5 px-3 py-2 rounded-xl whitespace-nowrap",
+                              "text-xs font-bold transition-all",
+                              activeCategory === tab.id
+                                ? "bg-primary text-primary-foreground shadow-md"
+                                : "bg-muted text-muted-foreground"
+                            )}
+                          >
+                            <span>{tab.icon}</span>
+                            <span>{tab.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Send takeaway to kitchen */}
+                  {takeawayCart.length > 0 && (
+                    <div className="px-3 pb-3">
+                      <button
+                        onClick={handleSendTakeawayToKitchen}
+                        disabled={sendingToKitchen}
+                        className="w-full py-3 bg-orange-500 text-white rounded-xl font-extrabold text-sm flex items-center justify-center gap-2 active:scale-95 transition-transform disabled:opacity-60"
+                      >
+                        {sendingToKitchen ? "Sending…" : `🍳 Send ${takeawayCart.reduce((s, i) => s + i.quantity, 0)} item(s) to Kitchen`}
+                      </button>
+                    </div>
+                  )}
 
                   {/* Menu grid */}
                   <div className="px-3 pb-3 grid grid-cols-2 gap-2">
                     {filteredMenu.map((item) => {
-                      const qty = getTakeawayQty(item.id);
+                      const isVariant = !!item.variants;
+                      const qty = isVariant ? 0 : getTakeawayQty(item.id);
+                      const variantSummary = isVariant
+                        ? getTakeawayVariantSummary(item.id)
+                        : null;
                       return (
                         <div
                           key={item.id}
                           className={cn(
                             "bg-background border-2 rounded-xl p-3 flex flex-col gap-2",
-                            qty > 0 ? "border-secondary/60" : "border-border"
+                            (qty > 0 || !!variantSummary)
+                              ? "border-secondary/60"
+                              : "border-border"
                           )}
                         >
                           <div>
                             <p className="font-bold text-foreground text-xs leading-tight">
                               {item.name}
                             </p>
-                            <p className="text-secondary font-extrabold text-sm mt-0.5">
-                              ₹{item.price}
-                            </p>
+                            {/* Category badge shown only in search results */}
+                            {takeawaySearch && (
+                              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide mt-0.5">
+                                {CATEGORY_LABELS[item.category]}
+                              </p>
+                            )}
+                            {isVariant ? (
+                              <p className="text-secondary font-extrabold text-xs mt-0.5">
+                                ₹{item.variants![0].price}–₹{item.variants![item.variants!.length - 1].price}
+                              </p>
+                            ) : (
+                              <p className="text-secondary font-extrabold text-sm mt-0.5">
+                                ₹{item.price}
+                              </p>
+                            )}
                           </div>
-                          {qty === 0 ? (
+                          {isVariant ? (
+                            <div className="space-y-1">
+                              <button
+                                onClick={() => setTakeawayVariantItem(item)}
+                                className="w-full py-1.5 bg-secondary text-secondary-foreground rounded-lg font-bold text-xs active:scale-95 transition-transform"
+                              >
+                                Add
+                              </button>
+                              {variantSummary && (
+                                <p className="text-center text-xs font-semibold text-secondary">
+                                  {variantSummary}
+                                </p>
+                              )}
+                            </div>
+                          ) : qty === 0 ? (
                             <button
                               onClick={() => addTakeaway(item)}
                               className="w-full py-1.5 bg-secondary text-secondary-foreground rounded-lg font-bold text-xs active:scale-95 transition-transform"

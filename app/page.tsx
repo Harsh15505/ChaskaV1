@@ -77,6 +77,7 @@ export default function Page() {
         tableNumber={table?.tableNumber ?? 0}
         tableStatus={table?.status ?? "free"}
         existingOrderId={table?.currentOrderId ?? null}
+        orders={orders}
         onBack={() => setSelectedTableId(null)}
       />
     );

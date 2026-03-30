@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Chaska</string>
+    <string name="app_name">Chaska Punjabi</string>
     <string name="title_activity_main">Chaska</string>
     <string name="package_name">com.chaska.pos</string>
     <string name="custom_url_scheme">com.chaska.pos</string>
