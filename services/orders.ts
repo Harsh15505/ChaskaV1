@@ -3,6 +3,7 @@ import {
   doc,
   addDoc,
   updateDoc,
+  getDoc,
   onSnapshot,
   query,
   where,
@@ -155,6 +156,35 @@ export async function markOrderServed(
   tableId: string // kept to avoid changing other components' props
 ): Promise<void> {
   await updateOrderStatus(orderId, "served");
+}
+
+/**
+ * Kitchen ticks a single item as done.
+ * If ALL non-skipKitchen items in the order are done, auto-marks the whole order as served.
+ */
+export async function markOrderItemDone(
+  orderId: string,
+  itemId: string,
+): Promise<void> {
+  const ref = doc(db, ORDERS_COLLECTION, orderId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+
+  const data = snap.data() as Record<string, unknown>;
+  const items = (data.items as OrderItem[]).map((i) =>
+    i.id === itemId ? { ...i, markedDone: true } : i
+  );
+
+  // Auto-complete order when every kitchen-bound item is ticked
+  const kitchenItems = items.filter((i) => !i.skipKitchen);
+  const allDone =
+    kitchenItems.length > 0 && kitchenItems.every((i) => i.markedDone);
+
+  await updateDoc(ref, {
+    items,
+    ...(allDone ? { status: "served" } : {}),
+    updatedAt: serverTimestamp(),
+  });
 }
 
 /**

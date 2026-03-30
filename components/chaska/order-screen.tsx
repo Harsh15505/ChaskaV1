@@ -24,7 +24,8 @@ interface OrderScreenProps {
   onBack: () => void;
 }
 
-const CATEGORY_TABS: { id: MenuCategory; label: string; icon: string }[] = [
+const CATEGORY_TABS: { id: MenuCategory | "all"; label: string; icon: string }[] = [
+  { id: "all",            label: "All",       icon: "🍽️" },
   { id: "soup",           label: "Soup",      icon: "🍲" },
   { id: "chinese",        label: "Chinese",   icon: "🍜" },
   { id: "paneer",         label: "Paneer",    icon: "🧀" },
@@ -48,13 +49,14 @@ const CATEGORY_LABELS: Record<MenuCategory, string> = {
   combos: "Combos",
 };
 
-/** Convert CartItem[] to OrderItem[] for Firestore */
+/** Convert CartItem[] to OrderItem[] for Firestore — propagates skipKitchen */
 function cartToOrderItems(cart: CartItem[]): OrderItem[] {
   return cart.map((c) => ({
     id: c.item.id,
     name: c.item.name,
     price: c.item.price!,
     quantity: c.quantity,
+    ...(c.item.skipKitchen ? { skipKitchen: true } : {}),
   }));
 }
 
@@ -65,7 +67,7 @@ export default function OrderScreen({
   orders,
   onBack,
 }: OrderScreenProps) {
-  const [activeCategory, setActiveCategory] = useState<MenuCategory>("soup");
+  const [activeCategory, setActiveCategory] = useState<MenuCategory | "all">("all");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [sending, setSending] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -74,25 +76,23 @@ export default function OrderScreen({
   const [variantPickerItem, setVariantPickerItem] = useState<MenuItem | null>(null);
 
   // When searching: show all matches across all categories
-  // When not searching: show items for the active category
+  // When not searching + "all": show every item in category order
+  // When not searching + specific category: filter
   const filteredItems = searchQuery.trim()
     ? MENU_ITEMS.filter((item) =>
         item.name.toLowerCase().includes(searchQuery.toLowerCase())
       )
+    : activeCategory === "all"
+    ? MENU_ITEMS
     : MENU_ITEMS.filter((item) => item.category === activeCategory);
 
   /** For regular items — look up by exact id */
   const getQuantity = (itemId: string) =>
     cart.find((c) => c.item.id === itemId)?.quantity ?? 0;
 
-  /** For variant items — sum all variant quantities with the base id prefix */
-  const getVariantSummary = (baseId: string) => {
-    const entries = cart.filter((c) => c.item.id.startsWith(baseId + "_"));
-    if (entries.length === 0) return null;
-    return entries
-      .map((e) => `${e.quantity}× ${e.item.id.split("_")[1]}`)
-      .join(", ");
-  };
+  /** Per-variant quantity helper */
+  const getVariantQty = (baseId: string, variantLabel: string) =>
+    cart.find((c) => c.item.id === `${baseId}_${variantLabel}`)?.quantity ?? 0;
 
   const addItem = (item: MenuItem) => {
     setCart((prev) => {
@@ -418,10 +418,9 @@ export default function OrderScreen({
           {filteredItems.map((item) => {
             const isVariant = !!item.variants;
             const qty = isVariant ? 0 : getQuantity(item.id);
-            const variantSummary = isVariant
-              ? getVariantSummary(item.id)
-              : null;
-            const hasVariantInCart = !!variantSummary;
+            const hasVariantInCart = isVariant
+              ? item.variants!.some((v) => getVariantQty(item.id, v.label) > 0)
+              : false;
 
             return (
               <div
@@ -437,11 +436,17 @@ export default function OrderScreen({
                   <p className="font-bold text-foreground text-sm leading-tight text-balance">
                     {item.name}
                   </p>
-                  {/* Category badge shown only in search results */}
-                  {searchQuery && (
+                  {/* Category badge: shown in search results or All tab */}
+                  {(searchQuery || activeCategory === "all") && (
                     <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide mt-0.5">
                       {CATEGORY_LABELS[item.category]}
                     </p>
+                  )}
+                  {/* Waiter-serves badge for skip-kitchen items */}
+                  {item.skipKitchen && (
+                    <span className="inline-block mt-1 text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
+                      👋 Waiter serves
+                    </span>
                   )}
                   {isVariant ? (
                     <p className="text-muted-foreground text-xs font-semibold mt-1">
@@ -457,22 +462,56 @@ export default function OrderScreen({
 
                 {isLocked ? (
                   <div className="py-2 text-center text-xs text-muted-foreground font-semibold">
-                    {hasVariantInCart ? variantSummary : qty > 0 ? `${qty} ordered` : "—"}
+                    {qty > 0 ? `${qty} ordered` : "—"}
                   </div>
                 ) : isVariant ? (
-                  // Variant item: always show Add button + summary below
+                  // Variant item: inline +/- per variant, picker only for first add
                   <div className="space-y-1.5">
-                    <button
-                      onClick={() => setVariantPickerItem(item)}
-                      className="w-full py-2.5 bg-primary text-primary-foreground rounded-xl font-bold text-sm active:scale-95 transition-transform"
-                    >
-                      Add
-                    </button>
-                    {variantSummary && (
-                      <p className="text-center text-xs font-semibold text-primary">
-                        {variantSummary} in cart
-                      </p>
-                    )}
+                    {(() => {
+                      const anyInCart = item.variants!.some(
+                        (v) => getVariantQty(item.id, v.label) > 0
+                      );
+                      if (!anyInCart) {
+                        return (
+                          <button
+                            onClick={() => setVariantPickerItem(item)}
+                            className="w-full py-2.5 bg-primary text-primary-foreground rounded-xl font-bold text-sm active:scale-95 transition-transform"
+                          >
+                            Choose Size
+                          </button>
+                        );
+                      }
+                      return item.variants!.map((v) => {
+                        const vQty = getVariantQty(item.id, v.label);
+                        const vId = `${item.id}_${v.label}`;
+                        if (vQty > 0) {
+                          return (
+                            <div key={v.label} className="flex items-center justify-between bg-primary/10 rounded-xl px-2 py-1">
+                              <span className="text-xs font-bold text-primary">{v.label}</span>
+                              <div className="flex items-center gap-2">
+                                <button onClick={() => removeItem(vId)} className="w-7 h-7 flex items-center justify-center rounded-lg text-primary active:scale-90">
+                                  <Minus className="w-3.5 h-3.5" />
+                                </button>
+                                <span className="text-primary font-extrabold text-base w-4 text-center">{vQty}</span>
+                                <button onClick={() => addVariant(item, v.label, v.price)} className="w-7 h-7 flex items-center justify-center rounded-lg text-primary active:scale-90">
+                                  <Plus className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        } else {
+                          return (
+                            <button
+                              key={v.label}
+                              onClick={() => addVariant(item, v.label, v.price)}
+                              className="w-full py-1.5 border border-primary/40 text-primary rounded-xl font-bold text-xs active:scale-95 transition-transform"
+                            >
+                              + {v.label} ₹{v.price}
+                            </button>
+                          );
+                        }
+                      });
+                    })()}
                   </div>
                 ) : qty === 0 ? (
                   <button

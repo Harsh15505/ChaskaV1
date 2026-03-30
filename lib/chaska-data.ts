@@ -28,6 +28,7 @@ export interface MenuItem {
   price?: number;              // undefined when item has variants
   category: MenuCategory;
   variants?: MenuItemVariant[]; // present for Half/Full items
+  skipKitchen?: boolean;       // true = waiter serves, never shown in kitchen
 }
 
 /** Flat item stored inside a Firestore order document */
@@ -36,6 +37,8 @@ export interface OrderItem {
   name: string;     // includes "(Half)" / "(Full)" suffix for variant items
   price: number;
   quantity: number;
+  skipKitchen?: boolean;  // inherited from MenuItem — never shown in kitchen
+  markedDone?: boolean;   // kitchen ticked this item as completed
 }
 
 /** CartItem used locally in the order screen before sending to Firestore */
@@ -130,9 +133,9 @@ export const MENU_ITEMS: MenuItem[] = [
   { id: "d8", name: "Paneer Pulav",             price: 130, category: "dal" },
 
   // ── ACCOMPANIMENTS ────────────────────────────────────────────────────────
-  { id: "a1", name: "Mineral Water (Small)",    price: 10,  category: "accompaniments" },
-  { id: "a2", name: "Mineral Water (Large)",    price: 20,  category: "accompaniments" },
-  { id: "a3", name: "Butter Milk",              price: 20,  category: "accompaniments" },
+  { id: "a1", name: "Mineral Water (Small)",    price: 10,  category: "accompaniments", skipKitchen: true },
+  { id: "a2", name: "Mineral Water (Large)",    price: 20,  category: "accompaniments", skipKitchen: true },
+  { id: "a3", name: "Butter Milk",              price: 20,  category: "accompaniments", skipKitchen: true },
   { id: "a4", name: "Roasted Papad",            price: 15,  category: "accompaniments" },
   { id: "a5", name: "Fry Papad",                price: 20,  category: "accompaniments" },
 

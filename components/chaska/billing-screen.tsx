@@ -36,7 +36,8 @@ interface TakeawayItem {
   quantity: number;
 }
 
-const CATEGORY_TABS: { id: MenuCategory; label: string; icon: string }[] = [
+const CATEGORY_TABS: { id: MenuCategory | "all"; label: string; icon: string }[] = [
+  { id: "all",            label: "All",       icon: "🍽️" },
   { id: "soup",           label: "Soup",      icon: "🍲" },
   { id: "chinese",        label: "Chinese",   icon: "🍜" },
   { id: "paneer",         label: "Paneer",    icon: "🧀" },
@@ -76,7 +77,7 @@ export default function BillingScreen({
   // ── Takeaway state ───────────────────────────────────────────────────────
   const [takeawayOpen, setTakeawayOpen] = useState(false);
   const [takeawayCart, setTakeawayCart] = useState<TakeawayItem[]>([]);
-  const [activeCategory, setActiveCategory] = useState<MenuCategory>("soup");
+  const [activeCategory, setActiveCategory] = useState<MenuCategory | "all">("all");
   const [takeawaySearch, setTakeawaySearch] = useState("");
   // Variant picker for takeaway
   const [takeawayVariantItem, setTakeawayVariantItem] = useState<MenuItem | null>(null);
@@ -148,11 +149,8 @@ export default function BillingScreen({
     setTakeawayVariantItem(null);
   };
 
-  const getTakeawayVariantSummary = (baseId: string) => {
-    const entries = takeawayCart.filter((c) => c.id.startsWith(baseId + "_"));
-    if (entries.length === 0) return null;
-    return entries.map((e) => `${e.quantity}× ${e.id.split("_")[1]}`).join(", ");
-  };
+  const getTakeawayVariantQty = (baseId: string, variantLabel: string) =>
+    takeawayCart.find((c) => c.id === `${baseId}_${variantLabel}`)?.quantity ?? 0;
 
   const removeTakeaway = (itemId: string) => {
     setTakeawayCart((prev) => {
@@ -169,6 +167,8 @@ export default function BillingScreen({
     ? MENU_ITEMS.filter((i) =>
         i.name.toLowerCase().includes(takeawaySearch.toLowerCase())
       )
+    : activeCategory === "all"
+    ? MENU_ITEMS
     : MENU_ITEMS.filter((i) => i.category === activeCategory);
 
   // ── Edit table order items ───────────────────────────────────────────────
@@ -566,15 +566,15 @@ export default function BillingScreen({
                     {filteredMenu.map((item) => {
                       const isVariant = !!item.variants;
                       const qty = isVariant ? 0 : getTakeawayQty(item.id);
-                      const variantSummary = isVariant
-                        ? getTakeawayVariantSummary(item.id)
-                        : null;
+                      const hasVariantInCart = isVariant
+                        ? item.variants!.some((v) => getTakeawayVariantQty(item.id, v.label) > 0)
+                        : false;
                       return (
                         <div
                           key={item.id}
                           className={cn(
                             "bg-background border-2 rounded-xl p-3 flex flex-col gap-2",
-                            (qty > 0 || !!variantSummary)
+                            (qty > 0 || hasVariantInCart)
                               ? "border-secondary/60"
                               : "border-border"
                           )}
@@ -583,11 +583,17 @@ export default function BillingScreen({
                             <p className="font-bold text-foreground text-xs leading-tight">
                               {item.name}
                             </p>
-                            {/* Category badge shown only in search results */}
-                            {takeawaySearch && (
+                            {/* Category badge in search or All tab */}
+                            {(takeawaySearch || activeCategory === "all") && (
                               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide mt-0.5">
                                 {CATEGORY_LABELS[item.category]}
                               </p>
+                            )}
+                            {/* Waiter-serves badge */}
+                            {item.skipKitchen && (
+                              <span className="inline-block mt-0.5 text-[9px] font-bold text-amber-700 bg-amber-100 px-1 py-0.5 rounded">
+                                👋 Waiter
+                              </span>
                             )}
                             {isVariant ? (
                               <p className="text-secondary font-extrabold text-xs mt-0.5">
@@ -601,17 +607,51 @@ export default function BillingScreen({
                           </div>
                           {isVariant ? (
                             <div className="space-y-1">
-                              <button
-                                onClick={() => setTakeawayVariantItem(item)}
-                                className="w-full py-1.5 bg-secondary text-secondary-foreground rounded-lg font-bold text-xs active:scale-95 transition-transform"
-                              >
-                                Add
-                              </button>
-                              {variantSummary && (
-                                <p className="text-center text-xs font-semibold text-secondary">
-                                  {variantSummary}
-                                </p>
-                              )}
+                              {(() => {
+                                const anyInCart = item.variants!.some(
+                                  (v) => getTakeawayVariantQty(item.id, v.label) > 0
+                                );
+                                if (!anyInCart) {
+                                  return (
+                                    <button
+                                      onClick={() => setTakeawayVariantItem(item)}
+                                      className="w-full py-1.5 bg-secondary text-secondary-foreground rounded-lg font-bold text-xs active:scale-95 transition-transform"
+                                    >
+                                      Choose Size
+                                    </button>
+                                  );
+                                }
+                                return item.variants!.map((v) => {
+                                  const vQty = getTakeawayVariantQty(item.id, v.label);
+                                  const vId = `${item.id}_${v.label}`;
+                                  if (vQty > 0) {
+                                    return (
+                                      <div key={v.label} className="flex items-center justify-between bg-secondary/10 rounded-lg px-1 py-0.5">
+                                        <span className="text-[10px] font-bold text-secondary">{v.label}</span>
+                                        <div className="flex items-center gap-1.5">
+                                          <button onClick={() => removeTakeaway(vId)} className="w-6 h-6 flex items-center justify-center rounded text-secondary active:scale-90">
+                                            <Minus className="w-3 h-3" />
+                                          </button>
+                                          <span className="text-secondary font-extrabold text-sm w-3 text-center">{vQty}</span>
+                                          <button onClick={() => addTakeawayVariant(item, v.label, v.price)} className="w-6 h-6 flex items-center justify-center rounded text-secondary active:scale-90">
+                                            <Plus className="w-3 h-3" />
+                                          </button>
+                                        </div>
+                                      </div>
+                                    );
+                                  } else {
+                                    return (
+                                      <button
+                                        key={v.label}
+                                        onClick={() => addTakeawayVariant(item, v.label, v.price)}
+                                        className="w-full py-1 border border-secondary/40 text-secondary rounded-lg font-bold text-[10px] active:scale-95 transition-transform"
+                                      >
+                                        + {v.label} ₹{v.price}
+                                      </button>
+                                    );
+                                  }
+                                });
+                              })()}
                             </div>
                           ) : qty === 0 ? (
                             <button
