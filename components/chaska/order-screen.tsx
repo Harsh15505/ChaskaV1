@@ -144,14 +144,16 @@ export default function OrderScreen({
   );
 
   const mergedSentItems = activeOrders.reduce((acc, order) => {
-    order.items.forEach((item) => {
-      const existing = acc.find((i) => i.id === item.id);
-      if (existing) {
-        existing.quantity += item.quantity;
-      } else {
-        acc.push({ ...item });
-      }
-    });
+    order.items
+      .filter((item) => !item.skipKitchen) // waiter-served items never go to kitchen
+      .forEach((item) => {
+        const existing = acc.find((i) => i.id === item.id);
+        if (existing) {
+          existing.quantity += item.quantity;
+        } else {
+          acc.push({ ...item });
+        }
+      });
     return acc;
   }, [] as OrderItem[]);
 

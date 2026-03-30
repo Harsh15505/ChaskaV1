@@ -86,3 +86,22 @@ export async function seedTablesIfEmpty(count: number = 8): Promise<void> {
     });
   }
 }
+
+/**
+ * Ensure at least `targetCount` tables exist in Firestore.
+ * Adds only the missing ones — safe to call on every app start.
+ */
+export async function ensureTablesCount(targetCount: number = 12): Promise<void> {
+  const existing = await getTables();
+  const existingNumbers = new Set(existing.map((t) => t.tableNumber));
+
+  for (let i = 1; i <= targetCount; i++) {
+    if (!existingNumbers.has(i)) {
+      await setDoc(doc(db, TABLES_COLLECTION, `table_${i}`), {
+        tableNumber: i,
+        status: "free" as TableStatus,
+        currentOrderId: null,
+      });
+    }
+  }
+}
