@@ -175,6 +175,8 @@ public class PrinterPlugin extends Plugin {
         int tableNumber = data.getInteger("tableNumber", 0);
         String time = data.getString("time", "");
         int totalAmount = data.getInteger("totalAmount", 0);
+        int discount = data.getInteger("discount", 0);
+        int cashPaid = data.getInteger("cashPaid", 0);
         String upiString = data.getString("upiString", "");
         JSONArray items = data.getJSONArray("items");
         Boolean isKot = data.optBoolean("isKot", false);
@@ -232,17 +234,39 @@ public class PrinterPlugin extends Plugin {
               .append("[R]Rs.").append(itemTotal).append("\n");
         }
 
+        // Calculations
+        int upiPending = Math.max(0, totalAmount - discount - cashPaid);
+
         // Total
         sb.append("[C]--------------------------------\n");
-        sb.append("[L]<b>TOTAL</b>[R]<b>Rs.").append(totalAmount).append("</b>\n");
+        
+        if (discount == 0 && cashPaid == 0) {
+            sb.append("[L]<b>GRAND TOTAL</b>[R]<b>Rs.").append(totalAmount).append("</b>\n");
+        } else {
+            sb.append("[L]Subtotal[R]Rs.").append(totalAmount).append("\n");
+            if (discount > 0) {
+                sb.append("[L]Discount[R]-Rs.").append(discount).append("\n");
+            }
+            if (cashPaid > 0) {
+                sb.append("[L]Cash Paid[R]-Rs.").append(cashPaid).append("\n");
+            }
+            sb.append("[C]--------------------------------\n");
+            sb.append("[L]<b>PENDING UPI</b>[R]<b>Rs.").append(upiPending).append("</b>\n");
+        }
         sb.append("[C]--------------------------------\n");
 
-        // UPI QR code
-        sb.append("[L]\n");
-        sb.append("[C]<qrcode size='20'>").append(upiString).append("</qrcode>\n");
-        sb.append("[L]\n");
-        sb.append("[C]Scan to Pay via UPI\n");
-        sb.append("[L]\n");
+        // UPI QR code (only if pending exists)
+        if (upiPending > 0) {
+            sb.append("[L]\n");
+            sb.append("[C]<qrcode size='20'>").append(upiString).append("</qrcode>\n");
+            sb.append("[L]\n");
+            sb.append("[C]Scan to Pay via UPI\n");
+            sb.append("[L]\n");
+        } else {
+            sb.append("[L]\n");
+            sb.append("[C]<b>*** PAID IN FULL ***</b>\n");
+            sb.append("[L]\n");
+        }
 
         // Footer
         sb.append("[C]Thank you for dining with us!\n");

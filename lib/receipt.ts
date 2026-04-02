@@ -33,6 +33,8 @@ export interface ReceiptData {
   billNumber: string;
   /** Whether this is specifically a KOT */
   isKot?: boolean;
+  discount?: number;
+  cashPaid?: number;
 }
 
 // ─── Brand Config (all from .env.local) ─────────────────────────────────────
@@ -44,7 +46,7 @@ export const RECEIPT_FOOTER  = process.env.NEXT_PUBLIC_RECEIPT_FOOTER ?? "Thank 
 export const GST_NUMBER      = process.env.NEXT_PUBLIC_GST_NUMBER     ?? "";
 
 /** Build the UPI deep-link that gets encoded into the QR code */
-function buildUpiString(amount: number): string {
+export function buildUpiString(amount: number): string {
   return `upi://pay?pa=${UPI_ID}&pn=${encodeURIComponent(UPI_NAME)}&am=${amount}&cu=INR`;
 }
 

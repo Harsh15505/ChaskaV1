@@ -443,8 +443,20 @@ export default function BillingScreen({
               </div>
 
               {mergedItems.length === 0 ? (
-                <div className="px-4 py-6 text-center text-muted-foreground text-sm">
-                  No items ordered
+                <div className="px-4 py-8 flex flex-col items-center justify-center space-y-4">
+                  <p className="text-muted-foreground text-sm font-semibold">No items ordered</p>
+                  <button
+                    onClick={handleClearTable}
+                    disabled={clearing}
+                    className="px-5 py-2.5 bg-destructive/10 hover:bg-destructive/20 text-destructive rounded-xl font-bold text-sm active:scale-95 transition-all flex items-center gap-2 shadow-sm"
+                  >
+                    {clearing ? (
+                      <span className="w-4 h-4 border-2 border-current border-t-transparent animate-spin rounded-full" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
+                    Clear Empty Table
+                  </button>
                 </div>
               ) : (
                 <div className="px-4 py-3 space-y-3">
@@ -504,8 +516,20 @@ export default function BillingScreen({
 
           {/* No order */}
           {selectedTableId && selectedOrders.length === 0 && !loading && (
-            <div className="text-center text-muted-foreground text-sm py-2">
-              No active order for this table yet.
+            <div className="flex flex-col items-center justify-center space-y-4 py-8 bg-card border border-border rounded-2xl shadow-sm">
+              <p className="text-muted-foreground text-sm font-semibold">No active order for this table yet.</p>
+              <button
+                onClick={handleClearTable}
+                disabled={clearing}
+                className="px-5 py-2.5 bg-destructive/10 hover:bg-destructive/20 text-destructive rounded-xl font-bold text-sm active:scale-95 transition-all flex items-center gap-2 shadow-sm"
+              >
+                {clearing ? (
+                  <span className="w-4 h-4 border-2 border-current border-t-transparent animate-spin rounded-full" />
+                ) : (
+                  <Trash2 className="w-4 h-4" />
+                )}
+                Clear Empty Table
+              </button>
             </div>
           )}
 

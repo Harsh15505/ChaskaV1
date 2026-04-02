@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { X, Printer, Bluetooth, CheckCircle2 } from "lucide-react";
-import { ReceiptData } from "@/lib/receipt";
+import { ReceiptData, buildUpiString } from "@/lib/receipt";
 import { printReceipt, isAndroid } from "@/lib/printer";
 import { getSavedPrinter } from "@/components/chaska/PrinterConnect";
 import PrinterConnect from "@/components/chaska/PrinterConnect";
@@ -35,6 +35,14 @@ export default function ReceiptPreview({
   const [printing, setPrinting] = useState(false);
   const [isNative, setIsNative] = useState(false);
 
+  // ── Payment modifiers ──────────────────────────────────────────────────────
+  const [discount, setDiscount] = useState<number>(0);
+  const [cashPaid, setCashPaid] = useState<number>(0);
+
+  const finalTotal = Math.max(0, totalAmount - (discount || 0));
+  const upiPending = Math.max(0, finalTotal - (cashPaid || 0));
+  const dynamicUpiString = buildUpiString(upiPending);
+
   // Load saved printer from localStorage on mount and check platform
   useEffect(() => {
     setIsNative(isAndroid());
@@ -57,7 +65,13 @@ export default function ReceiptPreview({
         printBillNumber = await onRequestBillNumber();
       }
       
-      const printData = { ...receiptData, billNumber: printBillNumber };
+      const printData = { 
+        ...receiptData, 
+        billNumber: printBillNumber,
+        discount: discount || 0,
+        cashPaid: cashPaid || 0,
+        upiString: dynamicUpiString
+      };
       await printReceipt(printData, printerAddress);
       toast.success(receiptData.isKot ? "KOT printed!" : "Receipt printed!");
 
@@ -131,32 +145,71 @@ export default function ReceiptPreview({
             ))}
           </div>
 
-          {/* ── Total (hidden for KOT) ── */}
+          {/* ── Payment Options (hidden for KOT) ── */}
           {!receiptData.isKot && (
-            <div className="mx-5 border-t-2 border-dashed border-border pt-3 pb-3 flex items-center justify-between">
-              <span className="text-muted-foreground font-semibold text-sm">Grand Total</span>
-              <span className="text-foreground font-extrabold text-2xl">₹{totalAmount}</span>
+            <div className="mx-5 border-t-2 border-dashed border-border pt-4 pb-4 space-y-3">
+              {/* Subtotal */}
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground font-semibold">Subtotal</span>
+                <span className="text-foreground font-extrabold">₹{totalAmount}</span>
+              </div>
+              
+              {/* Discount Input */}
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground font-semibold text-sm">Discount (₹)</span>
+                <input
+                  type="number"
+                  placeholder="0"
+                  value={discount || ""}
+                  onChange={(e) => setDiscount(Math.max(0, parseInt(e.target.value) || 0))}
+                  className="w-24 bg-muted border border-border rounded-lg px-2 py-1 text-right text-sm font-bold text-destructive outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+
+              {/* Cash Paid Input */}
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground font-semibold text-sm">Cash Paid (₹)</span>
+                <input
+                  type="number"
+                  placeholder="0"
+                  value={cashPaid || ""}
+                  onChange={(e) => setCashPaid(Math.max(0, parseInt(e.target.value) || 0))}
+                  className="w-24 bg-muted border border-border rounded-lg px-2 py-1 text-right text-sm font-bold text-emerald-600 outline-none focus:ring-2 focus:ring-secondary"
+                />
+              </div>
+
+              {/* Final Totals */}
+              <div className="pt-2 border-t border-border flex items-center justify-between">
+                <span className="text-foreground font-bold text-sm">Pending UPI</span>
+                <span className="text-secondary font-extrabold text-2xl">₹{upiPending}</span>
+              </div>
             </div>
           )}
 
-          {/* ── QR Code (hidden for KOT) ── */}
-          {!receiptData.isKot && (
+          {/* ── QR Code (hidden for KOT or zero balance) ── */}
+          {!receiptData.isKot && upiPending > 0 ? (
             <div className="flex flex-col items-center pb-4 gap-2">
               <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
                 Scan to Pay via UPI
               </p>
               <div className="bg-white p-3 rounded-2xl shadow-md">
                 <QRCodeSVG
-                  value={upiString}
+                  value={dynamicUpiString}
                   size={148}
                   bgColor="#ffffff"
                   fgColor="#1a1a1a"
                   level="M"
                 />
               </div>
-              <p className="text-[11px] text-muted-foreground">Amount: ₹{totalAmount}</p>
+              <p className="text-[11px] text-muted-foreground font-bold">UPI Amount: ₹{upiPending}</p>
             </div>
-          )}
+          ) : !receiptData.isKot && upiPending === 0 ? (
+            <div className="flex flex-col items-center pb-4 gap-2">
+               <div className="bg-emerald-100 text-emerald-800 px-4 py-3 rounded-xl text-sm font-bold flex items-center gap-2">
+                 <CheckCircle2 className="w-5 h-5" /> Account Settled
+               </div>
+            </div>
+          ) : null}
 
           {/* ── Printer connection status ── */}
           {isNative && (

@@ -34,6 +34,8 @@ export interface PrintReceiptPayload {
   upiString: string;
   isKot?: boolean;
   billNumber: string;
+  discount?: number;
+  cashPaid?: number;
 }
 
 // ── Plugin registration ───────────────────────────────────────────────────────
@@ -131,6 +133,8 @@ export async function printReceipt(
     upiString: receiptData.upiString,
     isKot: receiptData.isKot,
     billNumber: receiptData.billNumber,
+    discount: receiptData.discount ?? 0,
+    cashPaid: receiptData.cashPaid ?? 0,
   };
 
   await NativePrinter.printReceipt({ address: printerAddress, data: payload });
