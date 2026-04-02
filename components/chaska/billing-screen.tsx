@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { FirestoreOrder, FirestoreTable, MenuCategory, MENU_ITEMS, MenuItem } from "@/lib/chaska-data";
 import { clearTable, updateOrderItems, createTakeawayOrder, markOrdersKotPrinted } from "@/services/orders";
-import { getNextBillNumber } from "@/services/billing-counter";
+import { getNextBillNumber, getNextKotNumber } from "@/services/billing-counter";
 import { generateReceipt, generateKotData } from "@/lib/receipt";
 import type { ReceiptData } from "@/lib/receipt";
 import { cn } from "@/lib/utils";
@@ -238,9 +238,18 @@ export default function BillingScreen({
 
   // ── Print KOT ────────────────────────────────────────────────────────────
 
-  const handlePrintKot = () => {
+  const handlePrintKot = async () => {
     if (!selectedTable) return;
-    const kotData = generateKotData(selectedOrders, selectedTable.tableNumber);
+    
+    // Quick check if there are unprinted items to avoid wasting a KOT number
+    const hasUnprinted = selectedOrders.some((o) => !o.kotPrinted);
+    if (!hasUnprinted) {
+      toast.info("No unprinted items to send to kitchen.");
+      return;
+    }
+
+    const kotNum = await getNextKotNumber();
+    const kotData = generateKotData(selectedOrders, selectedTable.tableNumber, kotNum);
     if (!kotData) {
       toast.info("No unprinted items to send to kitchen.");
       return;

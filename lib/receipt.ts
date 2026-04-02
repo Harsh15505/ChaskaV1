@@ -178,7 +178,7 @@ export function formatReceiptForPrint(receipt: ReceiptData): string {
 /**
  * Generates data for a Kitchen Order Ticket containing only unprinted items.
  */
-export function generateKotData(orders: FirestoreOrder[], tableNumber: number): ReceiptData | null {
+export function generateKotData(orders: FirestoreOrder[], tableNumber: number, kotNumber: string): ReceiptData | null {
   const itemMap = new Map<string, ReceiptItem>();
 
   // Only consider orders that haven't been printed yet
@@ -222,7 +222,7 @@ export function generateKotData(orders: FirestoreOrder[], tableNumber: number): 
     items,
     totalAmount: 0,
     time,
-    billNumber: "KOT",
+    billNumber: kotNumber,
     upiString: "",
     isKot: true,
   };

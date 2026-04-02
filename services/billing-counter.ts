@@ -32,3 +32,25 @@ export async function getNextBillNumber(): Promise<string> {
   // Zero-pad to 4 digits: 1 → "0001", 42 → "0042"
   return String(newCount).padStart(4, "0");
 }
+
+/**
+ * Atomically increments the global KOT counter.
+ */
+export async function getNextKotNumber(): Promise<string> {
+  const ref = doc(db, "meta", "kot_counter");
+
+  const newCount = await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+
+    if (!snap.exists()) {
+      tx.set(ref, { count: 1, updatedAt: serverTimestamp() });
+      return 1;
+    } else {
+      const next = (snap.data()?.count ?? 0) + 1;
+      tx.update(ref, { count: next, updatedAt: serverTimestamp() });
+      return next;
+    }
+  });
+
+  return String(newCount).padStart(4, "0");
+}

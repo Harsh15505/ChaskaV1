@@ -143,12 +143,12 @@ public class PrinterPlugin extends Plugin {
                 // DantSu printer config for Niyama BT-58:
                 //   DPI: 203     — standard for 58mm thermal printers
                 //   Width: 48mm  — effective print width of the Niyama BT-58
-                //   Chars: 24    — characters per line at normal font size
+                //   Chars: 32    — characters per line for typical 58mm
                 EscPosPrinter printer = new EscPosPrinter(
                     new BluetoothConnection(device),
                     203,  // printer DPI
                     48f,  // print width in mm
-                    24    // chars per line
+                    32    // chars per line
                 );
 
                 // Build the receipt text using DantSu's markup:
@@ -178,11 +178,13 @@ public class PrinterPlugin extends Plugin {
         String upiString = data.getString("upiString", "");
         JSONArray items = data.getJSONArray("items");
         Boolean isKot = data.optBoolean("isKot", false);
+        String billNumber = data.optString("billNumber", "N/A");
 
         if (isKot) {
-            sb.append("[C]<b>** KITCHEN ORDER **</b>\n");
-            sb.append("[C]Table: ").append(tableNumber).append("  |  ").append(time).append("\n");
-            sb.append("[L]------------------------\n");
+            sb.append("[C]<b><font size='wide'>** KOT **</font></b>\n");
+            sb.append("[C]Order No: ").append(billNumber).append(" | Table: ").append(tableNumber).append("\n");
+            sb.append("[C]").append(time).append("\n");
+            sb.append("[C]--------------------------------\n");
 
             for (int i = 0; i < items.length(); i++) {
                 JSONObject item = items.getJSONObject(i);
@@ -198,7 +200,7 @@ public class PrinterPlugin extends Plugin {
                 }
             }
 
-            sb.append("[L]------------------------\n");
+            sb.append("[C]--------------------------------\n");
             sb.append("[C]********** END ***********\n");
             sb.append("[C]\n[C]\n[C]\n");
 
@@ -206,9 +208,12 @@ public class PrinterPlugin extends Plugin {
         }
 
         // Header
-        sb.append("[C]<b>CHASKA</b>\n");
-        sb.append("[C]Table: ").append(tableNumber).append("  |  ").append(time).append("\n");
-        sb.append("[L]------------------------\n");
+        sb.append("[C]<b><font size='big'>CHASKA</font></b>\n");
+        sb.append("[C]<b>PUNJABI & CHINESE</b>\n");
+        sb.append("[C]--------------------------------\n");
+        sb.append("[C]Bill No: ").append(billNumber).append(" | Table: ").append(tableNumber).append("\n");
+        sb.append("[C]").append(time).append("\n");
+        sb.append("[C]--------------------------------\n");
 
         // Items — each on its own line: "2x Noodles      Rs.140"
         for (int i = 0; i < items.length(); i++) {
@@ -217,10 +222,10 @@ public class PrinterPlugin extends Plugin {
             int qty = item.getInt("quantity");
             int itemTotal = item.getInt("total");
 
-            // Truncate name if too long (24 chars max per line including qty prefix)
+            // Truncate name if too long (max ~24 chars to leave room for price)
             String label = qty + "x " + name;
-            if (label.length() > 16) {
-                label = label.substring(0, 15) + ".";
+            if (label.length() > 24) {
+                label = label.substring(0, 23) + ".";
             }
 
             sb.append("[L]").append(label)
@@ -228,13 +233,19 @@ public class PrinterPlugin extends Plugin {
         }
 
         // Total
-        sb.append("[L]------------------------\n");
+        sb.append("[C]--------------------------------\n");
         sb.append("[L]<b>TOTAL</b>[R]<b>Rs.").append(totalAmount).append("</b>\n");
-        sb.append("[L]\n");
+        sb.append("[C]--------------------------------\n");
 
         // UPI QR code
+        sb.append("[L]\n");
         sb.append("[C]<qrcode size='20'>").append(upiString).append("</qrcode>\n");
         sb.append("[C]Scan to Pay via UPI\n");
+        sb.append("[L]\n");
+
+        // Footer
+        sb.append("[C]Thank you for dining with us!\n");
+        sb.append("[C]Have a wonderful day\n");
 
         // Feed paper before cut
         sb.append("[L]\n[L]\n[L]\n");
