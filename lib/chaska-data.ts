@@ -39,12 +39,14 @@ export interface OrderItem {
   quantity: number;
   skipKitchen?: boolean;  // inherited from MenuItem — never shown in kitchen
   markedDone?: boolean;   // kitchen ticked this item as completed
+  note?: string;          // optional waiter instruction
 }
 
 /** CartItem used locally in the order screen before sending to Firestore */
 export interface CartItem {
   item: MenuItem;
   quantity: number;
+  note?: string;
 }
 
 // ─── Firestore document shapes ───────────────────────────────────────────────

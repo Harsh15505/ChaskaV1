@@ -29,7 +29,7 @@ interface NativePrinterPlugin {
 export interface PrintReceiptPayload {
   tableNumber: number;
   time: string;
-  items: Array<{ name: string; quantity: number; total: number }>;
+  items: Array<{ name: string; quantity: number; total: number; note?: string }>;
   totalAmount: number;
   upiString: string;
   isKot?: boolean;
@@ -124,6 +124,7 @@ export async function printReceipt(
       name: i.name,
       quantity: i.quantity,
       total: i.total,
+      ...(i.note ? { note: i.note } : {}),
     })),
     totalAmount: receiptData.totalAmount,
     upiString: receiptData.upiString,

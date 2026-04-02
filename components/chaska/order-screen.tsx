@@ -58,6 +58,7 @@ function cartToOrderItems(cart: CartItem[]): OrderItem[] {
     price: c.item.price!,
     quantity: c.quantity,
     ...(c.item.skipKitchen ? { skipKitchen: true } : {}),
+    ...(c.note?.trim() ? { note: c.note.trim() } : {}),
   }));
 }
 
@@ -117,6 +118,14 @@ export default function OrderScreen({
         c.item.id === itemId ? { ...c, quantity: c.quantity - 1 } : c
       );
     });
+  };
+
+  const updateNote = (itemId: string, note: string) => {
+    setCart((prev) =>
+      prev.map((c) =>
+        c.item.id === itemId ? { ...c, note } : c
+      )
+    );
   };
 
   /** Called when user picks a variant from the bottom sheet */
@@ -586,16 +595,25 @@ export default function OrderScreen({
         <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border px-4 pt-3 pb-6 shadow-2xl space-y-3">
           {cart.length > 0 && (
             <>
-              <div className="max-h-24 overflow-y-auto space-y-1.5">
+              <div className="max-h-32 overflow-y-auto space-y-2">
                 {cart.map((c) => (
-                  <div key={c.item.id} className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">
-                      <span className="text-primary font-bold">{c.quantity}×</span>{" "}
-                      {c.item.name}
-                    </span>
-                    <span className="text-sm font-semibold text-foreground">
-                      ₹{c.item.price! * c.quantity}
-                    </span>
+                  <div key={c.item.id} className="flex flex-col gap-1.5 border-b border-border/50 pb-2 last:border-0 last:pb-0">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-foreground font-medium">
+                        <span className="text-primary font-bold">{c.quantity}×</span>{" "}
+                        {c.item.name}
+                      </span>
+                      <span className="text-sm font-semibold text-foreground">
+                        ₹{c.item.price! * c.quantity}
+                      </span>
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Add note (e.g. spicy)..."
+                      value={c.note || ""}
+                      onChange={(e) => updateNote(c.item.id, e.target.value)}
+                      className="ml-6 text-xs bg-muted/30 border border-border/60 hover:border-primary/50 focus:border-primary rounded-md px-2 py-1.5 outline-none transition-colors text-muted-foreground focus:text-foreground placeholder:text-muted-foreground/50"
+                    />
                   </div>
                 ))}
               </div>

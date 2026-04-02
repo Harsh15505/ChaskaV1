@@ -16,6 +16,8 @@ export interface ReceiptItem {
   quantity: number;
   /** price × quantity */
   total: number;
+  /** Optional instructions for kitchen */
+  note?: string;
 }
 
 export interface ReceiptData {
@@ -188,15 +190,18 @@ export function generateKotData(orders: FirestoreOrder[], tableNumber: number): 
       // Don't print items that the kitchen doesn't prepare (e.g. bottled water)
       if (i.skipKitchen) return;
 
-      if (itemMap.has(i.id)) {
-        itemMap.get(i.id)!.quantity += i.quantity;
+      const key = `${i.id}_${i.note || ''}`;
+
+      if (itemMap.has(key)) {
+        itemMap.get(key)!.quantity += i.quantity;
       } else {
-        itemMap.set(i.id, {
+        itemMap.set(key, {
           id: i.id,
           name: i.name,
           price: i.price,
           quantity: i.quantity,
-          total: 0 // Not needed for KOT
+          total: 0, // Not needed for KOT
+          note: i.note
         });
       }
     });

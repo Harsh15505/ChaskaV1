@@ -188,9 +188,14 @@ public class PrinterPlugin extends Plugin {
                 JSONObject item = items.getJSONObject(i);
                 String name = item.getString("name");
                 int qty = item.getInt("quantity");
+                String note = item.optString("note", "");
 
                 String label = qty + "x " + name;
                 sb.append("[L]<b>").append(label).append("</b>\n");
+                
+                if (!note.isEmpty()) {
+                    sb.append("[L]   * NOTE: ").append(note).append("\n");
+                }
             }
 
             sb.append("[L]------------------------\n");
