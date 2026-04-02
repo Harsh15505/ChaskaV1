@@ -4,6 +4,8 @@ import {
   addDoc,
   updateDoc,
   getDoc,
+  writeBatch,
+  getDocs,
   onSnapshot,
   query,
   where,
@@ -33,6 +35,7 @@ function toOrder(id: string, data: Record<string, unknown>): FirestoreOrder {
     items: data.items as OrderItem[],
     status: data.status as OrderStatus,
     orderType: data.orderType as "takeaway" | undefined,
+    kotPrinted: data.kotPrinted as boolean | undefined,
     createdAt: (data.createdAt as Timestamp)?.toDate() ?? new Date(),
     updatedAt: (data.updatedAt as Timestamp)?.toDate() ?? new Date(),
   };
@@ -91,6 +94,7 @@ export async function createOrder(
     tableId,
     items,
     status: "pending",
+    kotPrinted: false,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -148,6 +152,21 @@ export async function updateOrderStatus(
 }
 
 /**
+ * Marks one or more orders as having their KOT printed.
+ */
+export async function markOrdersKotPrinted(orderIds: string[]): Promise<void> {
+  if (!orderIds.length) return;
+  const batch = writeBatch(db);
+  orderIds.forEach((id) => {
+    batch.update(doc(db, ORDERS_COLLECTION, id), {
+      kotPrinted: true,
+      updatedAt: serverTimestamp(),
+    });
+  });
+  await batch.commit();
+}
+
+/**
  * Kitchen marks an order done (served).
  * Sets order → "served" and leaves table active for more rounds.
  */
@@ -197,7 +216,7 @@ export async function requestBill(
   await updateTableStatus(tableId, "billing" as TableStatus);
 }
 
-import { writeBatch, getDocs } from "firebase/firestore";
+
 
 /**
  * Billing clears a table after payment.

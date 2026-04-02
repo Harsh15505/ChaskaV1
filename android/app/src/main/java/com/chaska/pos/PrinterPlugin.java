@@ -177,6 +177,28 @@ public class PrinterPlugin extends Plugin {
         int totalAmount = data.getInteger("totalAmount", 0);
         String upiString = data.getString("upiString", "");
         JSONArray items = data.getJSONArray("items");
+        Boolean isKot = data.optBoolean("isKot", false);
+
+        if (isKot) {
+            sb.append("[C]<b>** KITCHEN ORDER **</b>\n");
+            sb.append("[C]Table: ").append(tableNumber).append("  |  ").append(time).append("\n");
+            sb.append("[L]------------------------\n");
+
+            for (int i = 0; i < items.length(); i++) {
+                JSONObject item = items.getJSONObject(i);
+                String name = item.getString("name");
+                int qty = item.getInt("quantity");
+
+                String label = qty + "x " + name;
+                sb.append("[L]<b>").append(label).append("</b>\n");
+            }
+
+            sb.append("[L]------------------------\n");
+            sb.append("[C]********** END ***********\n");
+            sb.append("[C]\n[C]\n[C]\n");
+
+            return sb.toString();
+        }
 
         // Header
         sb.append("[C]<b>CHASKA</b>\n");
@@ -205,8 +227,7 @@ public class PrinterPlugin extends Plugin {
         sb.append("[L]<b>TOTAL</b>[R]<b>Rs.").append(totalAmount).append("</b>\n");
         sb.append("[L]\n");
 
-        // UPI QR code — DantSu renders this as a native QR code
-        // size='20' works well on 58mm paper (adjust if too small/large)
+        // UPI QR code
         sb.append("[C]<qrcode size='20'>").append(upiString).append("</qrcode>\n");
         sb.append("[C]Scan to Pay via UPI\n");
 

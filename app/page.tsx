@@ -7,7 +7,6 @@ import { useOrders } from "@/hooks/useOrders";
 import RoleSelect from "@/components/chaska/role-select";
 import TableDashboard from "@/components/chaska/table-dashboard";
 import OrderScreen from "@/components/chaska/order-screen";
-import KitchenScreen from "@/components/chaska/kitchen-screen";
 import BillingScreen from "@/components/chaska/billing-screen";
 import BottomNav, { AppView } from "@/components/chaska/bottom-nav";
 import { seedTablesIfEmpty } from "@/services/tables";
@@ -55,8 +54,7 @@ export default function Page() {
     localStorage.setItem(ROLE_TS_KEY, String(Date.now()));
 
     // Jump to the correct default view per role
-    if (selectedRole === "kitchen") setActiveView("kitchen");
-    else if (selectedRole === "billing") setActiveView("billing");
+    if (selectedRole === "billing") setActiveView("billing");
     else setActiveView("tables");
   };
 
@@ -83,10 +81,6 @@ export default function Page() {
     );
   }
 
-  const activeOrderCount = orders.filter(
-    (o) => o.status === "pending" || o.status === "preparing"
-  ).length;
-
   return (
     <div className="pb-16">
       {activeView === "tables" && (
@@ -95,10 +89,6 @@ export default function Page() {
           loading={tablesLoading}
           onSelectTable={(id) => setSelectedTableId(id)}
         />
-      )}
-
-      {activeView === "kitchen" && (
-        <KitchenScreen orders={orders} loading={ordersLoading} />
       )}
 
       {activeView === "billing" && (
@@ -119,7 +109,6 @@ export default function Page() {
           localStorage.removeItem(ROLE_KEY);
           localStorage.removeItem(ROLE_TS_KEY);
         }}
-        kitchenOrderCount={activeOrderCount}
       />
     </div>
   );

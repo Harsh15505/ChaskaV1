@@ -15,6 +15,7 @@ interface ReceiptPreviewProps {
   onClear: () => void;
   clearing: boolean;
   onRequestBillNumber?: () => Promise<string>;
+  onKotPrinted?: () => void;
 }
 
 export default function ReceiptPreview({
@@ -23,6 +24,7 @@ export default function ReceiptPreview({
   onClear,
   clearing,
   onRequestBillNumber,
+  onKotPrinted,
 }: ReceiptPreviewProps) {
   const { tableNumber, items, totalAmount, time, upiString, billNumber } = receiptData;
 
@@ -57,7 +59,11 @@ export default function ReceiptPreview({
       
       const printData = { ...receiptData, billNumber: printBillNumber };
       await printReceipt(printData, printerAddress);
-      toast.success("Receipt printed!");
+      toast.success(receiptData.isKot ? "KOT printed!" : "Receipt printed!");
+
+      if (receiptData.isKot && onKotPrinted) {
+        onKotPrinted();
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Print failed";
       toast.error(msg);
@@ -125,28 +131,32 @@ export default function ReceiptPreview({
             ))}
           </div>
 
-          {/* ── Total ── */}
-          <div className="mx-5 border-t-2 border-dashed border-border pt-3 pb-3 flex items-center justify-between">
-            <span className="text-muted-foreground font-semibold text-sm">Grand Total</span>
-            <span className="text-foreground font-extrabold text-2xl">₹{totalAmount}</span>
-          </div>
-
-          {/* ── QR Code ── */}
-          <div className="flex flex-col items-center pb-4 gap-2">
-            <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
-              Scan to Pay via UPI
-            </p>
-            <div className="bg-white p-3 rounded-2xl shadow-md">
-              <QRCodeSVG
-                value={upiString}
-                size={148}
-                bgColor="#ffffff"
-                fgColor="#1a1a1a"
-                level="M"
-              />
+          {/* ── Total (hidden for KOT) ── */}
+          {!receiptData.isKot && (
+            <div className="mx-5 border-t-2 border-dashed border-border pt-3 pb-3 flex items-center justify-between">
+              <span className="text-muted-foreground font-semibold text-sm">Grand Total</span>
+              <span className="text-foreground font-extrabold text-2xl">₹{totalAmount}</span>
             </div>
-            <p className="text-[11px] text-muted-foreground">Amount: ₹{totalAmount}</p>
-          </div>
+          )}
+
+          {/* ── QR Code (hidden for KOT) ── */}
+          {!receiptData.isKot && (
+            <div className="flex flex-col items-center pb-4 gap-2">
+              <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
+                Scan to Pay via UPI
+              </p>
+              <div className="bg-white p-3 rounded-2xl shadow-md">
+                <QRCodeSVG
+                  value={upiString}
+                  size={148}
+                  bgColor="#ffffff"
+                  fgColor="#1a1a1a"
+                  level="M"
+                />
+              </div>
+              <p className="text-[11px] text-muted-foreground">Amount: ₹{totalAmount}</p>
+            </div>
+          )}
 
           {/* ── Printer connection status ── */}
           {isNative && (
@@ -177,18 +187,20 @@ export default function ReceiptPreview({
                 {printing
                   ? "Printing…"
                   : printerAddress
-                  ? "Print Bill"
+                  ? (receiptData.isKot ? "Print KOT" : "Print Bill")
                   : "Connect & Print"}
               </button>
             )}
 
-            <button
-              onClick={onClear}
-              disabled={clearing}
-              className="w-full py-4 bg-secondary text-secondary-foreground rounded-2xl font-extrabold text-base active:scale-95 transition-transform shadow-lg disabled:opacity-60"
-            >
-              {clearing ? "Clearing table…" : `✓ Done — Clear Table ${tableNumber}`}
-            </button>
+            {!receiptData.isKot && (
+              <button
+                onClick={onClear}
+                disabled={clearing}
+                className="w-full py-4 bg-secondary text-secondary-foreground rounded-2xl font-extrabold text-base active:scale-95 transition-transform shadow-lg disabled:opacity-60"
+              >
+                {clearing ? "Clearing table…" : `✓ Done — Clear Table ${tableNumber}`}
+              </button>
+            )}
 
             <button
               onClick={onClose}

@@ -32,6 +32,7 @@ export interface PrintReceiptPayload {
   items: Array<{ name: string; quantity: number; total: number }>;
   totalAmount: number;
   upiString: string;
+  isKot?: boolean;
 }
 
 // ── Plugin registration ───────────────────────────────────────────────────────
@@ -126,6 +127,7 @@ export async function printReceipt(
     })),
     totalAmount: receiptData.totalAmount,
     upiString: receiptData.upiString,
+    isKot: receiptData.isKot,
   };
 
   await NativePrinter.printReceipt({ address: printerAddress, data: payload });

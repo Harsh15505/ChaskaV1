@@ -26,13 +26,7 @@ const ROLES: {
     icon: <UtensilsCrossed className="w-8 h-8" />,
     color: "bg-primary/10 text-primary border-primary/30 hover:border-primary",
   },
-  {
-    id: "kitchen",
-    label: "Kitchen",
-    description: "View & manage live orders",
-    icon: <ChefHat className="w-8 h-8" />,
-    color: "bg-status-active/10 text-status-active border-status-active/30 hover:border-status-active",
-  },
+
   {
     id: "billing",
     label: "Billing",

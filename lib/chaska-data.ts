@@ -4,7 +4,7 @@
 
 export type TableStatus = "free" | "active" | "billing";
 export type OrderStatus = "pending" | "preparing" | "served" | "billed";
-export type AppRole = "waiter" | "kitchen" | "billing";
+export type AppRole = "waiter" | "billing";
 
 export type MenuCategory =
   | "soup"
@@ -61,6 +61,7 @@ export interface FirestoreOrder {
   tableId: string;          // e.g. "table_1"
   items: OrderItem[];
   status: OrderStatus;
+  kotPrinted?: boolean;     // tracks if this order has been printed for the kitchen
   orderType?: "takeaway";   // present on takeaway orders sent from billing
   createdAt: Date;
   updatedAt: Date;

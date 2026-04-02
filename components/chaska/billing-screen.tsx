@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { FirestoreOrder, FirestoreTable, MenuCategory, MENU_ITEMS, MenuItem } from "@/lib/chaska-data";
-import { clearTable, updateOrderItems, createTakeawayOrder } from "@/services/orders";
+import { clearTable, updateOrderItems, createTakeawayOrder, markOrdersKotPrinted } from "@/services/orders";
 import { getNextBillNumber } from "@/services/billing-counter";
-import { generateReceipt } from "@/lib/receipt";
+import { generateReceipt, generateKotData } from "@/lib/receipt";
 import type { ReceiptData } from "@/lib/receipt";
 import { cn } from "@/lib/utils";
 import {
@@ -16,8 +16,9 @@ import {
   ShoppingBag,
   ChevronDown,
   ChevronUp,
-  X,
   Search,
+  Printer,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import ReceiptPreview from "@/components/chaska/ReceiptPreview";
@@ -235,6 +236,18 @@ export default function BillingScreen({
     }
   };
 
+  // ── Print KOT ────────────────────────────────────────────────────────────
+
+  const handlePrintKot = () => {
+    if (!selectedTable) return;
+    const kotData = generateKotData(selectedOrders, selectedTable.tableNumber);
+    if (!kotData) {
+      toast.info("No unprinted items to send to kitchen.");
+      return;
+    }
+    setReceipt(kotData);
+  };
+
   // ── Clear table ──────────────────────────────────────────────────────────
 
   const handleClearTable = async () => {
@@ -320,6 +333,14 @@ export default function BillingScreen({
               toast.error("Failed to assign bill number.");
               throw err;
             }
+          }}
+          onKotPrinted={async () => {
+             // Mark the orders as printed
+             const unprintedOrderIds = selectedOrders.filter(o => !o.kotPrinted).map(o => o.id);
+             if (unprintedOrderIds.length > 0) {
+               await markOrdersKotPrinted(unprintedOrderIds);
+             }
+             setReceipt(null);
           }}
         />
       )}
@@ -708,12 +729,20 @@ export default function BillingScreen({
                 </span>
               </div>
 
-              <button
-                onClick={handleGenerateBill}
-                className="w-full py-4 bg-primary text-primary-foreground rounded-2xl font-extrabold text-base active:scale-95 transition-transform shadow-lg"
-              >
-                Generate Bill & QR
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={handlePrintKot}
+                  className="flex-1 py-4 bg-orange-500 text-white rounded-2xl font-extrabold text-base active:scale-95 transition-transform shadow-lg flex items-center justify-center gap-2"
+                >
+                  <Printer className="w-5 h-5" /> Print KOT
+                </button>
+                <button
+                  onClick={handleGenerateBill}
+                  className="flex-1 py-4 bg-primary text-primary-foreground rounded-2xl font-extrabold text-base active:scale-95 transition-transform shadow-lg"
+                >
+                  Generate Bill
+                </button>
+              </div>
             </div>
           )}
         </main>

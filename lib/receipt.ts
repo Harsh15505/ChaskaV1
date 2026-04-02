@@ -29,6 +29,8 @@ export interface ReceiptData {
   upiString: string;
   /** Daily sequential bill number, e.g. "007" */
   billNumber: string;
+  /** Whether this is specifically a KOT */
+  isKot?: boolean;
 }
 
 // ─── Brand Config (all from .env.local) ─────────────────────────────────────
@@ -164,6 +166,86 @@ export function formatReceiptForPrint(receipt: ReceiptData): string {
     `Pay via UPI: ${receipt.upiString}`,
     "",
     RECEIPT_FOOTER,
+  ];
+
+  return [headerLines.join("\n"), itemLines, footerLines.join("\n")].join("\n");
+}
+
+// ─── KOT Print Formatting ───────────────────────────────────────────────────
+
+/**
+ * Generates data for a Kitchen Order Ticket containing only unprinted items.
+ */
+export function generateKotData(orders: FirestoreOrder[], tableNumber: number): ReceiptData | null {
+  const itemMap = new Map<string, ReceiptItem>();
+
+  // Only consider orders that haven't been printed yet
+  const unprintedOrders = orders.filter(o => !o.kotPrinted);
+  if (unprintedOrders.length === 0) return null;
+
+  unprintedOrders.forEach((order) => {
+    order.items.forEach((i) => {
+      // Don't print items that the kitchen doesn't prepare (e.g. bottled water)
+      if (i.skipKitchen) return;
+
+      if (itemMap.has(i.id)) {
+        itemMap.get(i.id)!.quantity += i.quantity;
+      } else {
+        itemMap.set(i.id, {
+          id: i.id,
+          name: i.name,
+          price: i.price,
+          quantity: i.quantity,
+          total: 0 // Not needed for KOT
+        });
+      }
+    });
+  });
+
+  const items = Array.from(itemMap.values());
+  if (items.length === 0) return null; // e.g. if the only unprinted item was skipKitchen
+
+  const time = new Date().toLocaleTimeString("en-IN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  });
+
+  return {
+    tableId: unprintedOrders[0]?.tableId ?? "unknown",
+    tableNumber,
+    items,
+    totalAmount: 0,
+    time,
+    billNumber: "KOT",
+    upiString: "",
+    isKot: true,
+  };
+}
+
+/**
+ * Formats a KOT for the thermal printer.
+ * Only includes Table, Time, Items, and Quantities.
+ */
+export function formatKotForPrint(kotData: ReceiptData): string {
+  const DIVIDER = "──────────────────────────";
+
+  const headerLines = [
+    "** KITCHEN ORDER TICKET **",
+    `Table: ${kotData.tableNumber}`,
+    `Time: ${kotData.time}`,
+    DIVIDER,
+  ];
+
+  const itemLines = kotData.items
+    .map((item) => `${item.quantity} x ${item.name}`)
+    .join("\n");
+
+  const footerLines = [
+    DIVIDER,
+    "********** END ***********",
+    "",
+    "",
   ];
 
   return [headerLines.join("\n"), itemLines, footerLines.join("\n")].join("\n");

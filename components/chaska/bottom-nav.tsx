@@ -2,16 +2,15 @@
 
 import { AppRole } from "@/lib/chaska-data";
 import { cn } from "@/lib/utils";
-import { LayoutGrid, ChefHat, Receipt, RefreshCcw } from "lucide-react";
+import { LayoutGrid, Receipt, RefreshCcw } from "lucide-react";
 
-export type AppView = "tables" | "kitchen" | "billing";
+export type AppView = "tables" | "billing";
 
 interface BottomNavProps {
   activeView: AppView;
   role: AppRole;
   onNavigate: (view: AppView) => void;
   onChangeRole: () => void;
-  kitchenOrderCount: number;
 }
 
 const ALL_NAV_ITEMS: {
@@ -21,7 +20,6 @@ const ALL_NAV_ITEMS: {
   roles: AppRole[]; // which roles can see this tab
 }[] = [
   { id: "tables",  label: "Tables",  Icon: LayoutGrid, roles: ["waiter", "billing"] },
-  { id: "kitchen", label: "Kitchen", Icon: ChefHat,    roles: ["kitchen"] },
   { id: "billing", label: "Billing", Icon: Receipt,    roles: ["billing"] },
 ];
 
@@ -30,7 +28,6 @@ export default function BottomNav({
   role,
   onNavigate,
   onChangeRole,
-  kitchenOrderCount,
 }: BottomNavProps) {
   const visibleItems = ALL_NAV_ITEMS.filter((item) =>
     item.roles.includes(role)
@@ -75,11 +72,6 @@ export default function BottomNav({
             >
               <div className="relative">
                 <Icon className="w-6 h-6" />
-                {id === "kitchen" && kitchenOrderCount > 0 && (
-                  <span className="absolute -top-1.5 -right-2 w-4 h-4 bg-status-billing text-foreground text-[10px] font-extrabold rounded-full flex items-center justify-center">
-                    {kitchenOrderCount}
-                  </span>
-                )}
               </div>
               <span
                 className={cn(
