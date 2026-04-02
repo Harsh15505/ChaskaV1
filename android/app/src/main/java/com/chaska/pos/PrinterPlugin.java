@@ -240,6 +240,7 @@ public class PrinterPlugin extends Plugin {
         // UPI QR code
         sb.append("[L]\n");
         sb.append("[C]<qrcode size='20'>").append(upiString).append("</qrcode>\n");
+        sb.append("[L]\n");
         sb.append("[C]Scan to Pay via UPI\n");
         sb.append("[L]\n");
 
