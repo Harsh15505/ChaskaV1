@@ -399,27 +399,34 @@ export default function BillingScreen({
               </div>
             ) : (
               <div className="grid grid-cols-4 gap-2">
-                {activeTables.map((table) => (
-                  <button
-                    key={table.id}
-                    onClick={() => {
-                      setSelectedTableId(table.id);
-                      setReceipt(null);
-                      setBillNumberForTable(null); // reset bill number when switching tables
-                    }}
-                    className={cn(
-                      "py-4 rounded-xl font-extrabold text-lg transition-all active:scale-90",
-                      selectedTableId === table.id
-                        ? "bg-primary text-primary-foreground shadow-lg"
-                        : table.status === "billing"
-                        ? "bg-status-billing/20 border-2 border-status-billing text-status-billing"
-                        : "bg-card border border-border text-foreground"
-                    )}
-                    aria-label={`Select table ${table.tableNumber}`}
-                  >
-                    {table.tableNumber}
-                  </button>
-                ))}
+                {activeTables.map((table) => {
+                  const tableOrders = orders.filter((o) => o.tableId === table.id);
+                  const hasUnprintedKot = tableOrders.some((o) => !o.kotPrinted && o.items.length > 0);
+
+                  return (
+                    <button
+                      key={table.id}
+                      onClick={() => {
+                        setSelectedTableId(table.id);
+                        setReceipt(null);
+                        setBillNumberForTable(null); // reset bill number when switching tables
+                      }}
+                      className={cn(
+                        "py-4 rounded-xl font-extrabold text-lg transition-all active:scale-90",
+                        selectedTableId === table.id
+                          ? "bg-primary text-primary-foreground shadow-lg"
+                          : table.status === "billing"
+                          ? "bg-status-billing/20 border-2 border-status-billing text-status-billing"
+                          : hasUnprintedKot
+                          ? "bg-orange-500/20 border-2 border-orange-500 text-orange-600"
+                          : "bg-card border border-border text-foreground"
+                      )}
+                      aria-label={`Select table ${table.tableNumber}`}
+                    >
+                      {table.tableNumber}
+                    </button>
+                  );
+                })}
                 {activeTables.length === 0 && (
                   <div className="col-span-4 py-6 text-center text-muted-foreground text-sm">
                     No active tables
