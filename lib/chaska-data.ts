@@ -40,6 +40,7 @@ export interface OrderItem {
   skipKitchen?: boolean;  // inherited from MenuItem — never shown in kitchen
   markedDone?: boolean;   // kitchen ticked this item as completed
   note?: string;          // optional waiter instruction
+  servedAmt?: number;     // how many of this item have been physically served
 }
 
 /** CartItem used locally in the order screen before sending to Firestore */
