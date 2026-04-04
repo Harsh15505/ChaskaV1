@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { App as CapacitorApp } from "@capacitor/app";
 import { AppRole } from "@/lib/chaska-data";
 import { useTables } from "@/hooks/useTables";
 import { useOrders } from "@/hooks/useOrders";
@@ -46,6 +47,26 @@ export default function Page() {
       seedTablesIfEmpty(8).catch(console.error);
     }
   }, [tablesLoading, tables.length]);
+
+  // ── Native Android Back Button Handler ──────────────────────────────────────
+  useEffect(() => {
+    const listener = CapacitorApp.addListener("backButton", () => {
+      if (selectedTableId) {
+        // Return to table dashboard from inside a table order
+        setSelectedTableId(null);
+      } else if (activeView !== "tables" && role !== "billing") {
+        // Return to tables view if we are on billing (but not if our role is exclusively billing)
+        setActiveView("tables");
+      } else {
+        // At root level, exit the app
+        CapacitorApp.exitApp();
+      }
+    });
+
+    return () => {
+      listener.then((l) => l.remove());
+    };
+  }, [selectedTableId, activeView, role]);
 
   // ── Handle role selection ───────────────────────────────────────────────────
   const handleSelectRole = (selectedRole: AppRole) => {
