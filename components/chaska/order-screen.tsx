@@ -626,7 +626,8 @@ export default function OrderScreen({
 
       {/* Undo Bill Request bar — shown when table is locked (billing status) */}
       {isLocked && (
-        <div className="fixed bottom-0 left-0 right-0 bg-card border-t-2 border-status-billing px-4 pt-3 pb-6 shadow-2xl">
+        <div className="fixed bottom-0 left-0 right-0 bg-card border-t-2 border-status-billing px-4 pt-3 shadow-2xl"
+             style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom))" }}>
           <div className="flex items-center justify-between mb-2">
             <div>
               <p className="text-sm font-extrabold text-status-billing">Bill Requested</p>
@@ -645,7 +646,8 @@ export default function OrderScreen({
 
       {/* Bottom Cart Section */}
       {(!isLocked && (cart.length > 0 || tableHasActiveOrders)) && (
-        <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border px-4 pt-3 pb-6 shadow-2xl space-y-3">
+        <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border px-4 pt-3 shadow-2xl space-y-3"
+             style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom))" }}>
           {cart.length > 0 && (
             <>
               <div className="max-h-40 overflow-y-auto space-y-1.5">

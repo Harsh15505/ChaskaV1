@@ -36,13 +36,14 @@ export default function BottomNav({
   return (
     <nav
       className="fixed bottom-0 left-0 right-0 z-20 bg-card border-t border-border shadow-2xl"
+      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       aria-label="Main navigation"
     >
       <div className="flex">
         {/* Role change button — always on the left */}
         <button
           onClick={onChangeRole}
-          className="flex flex-col items-center justify-center gap-1 py-3 px-4 text-muted-foreground active:scale-95 transition-all duration-150"
+          className="flex flex-col items-center justify-center gap-1 py-3.5 px-4 text-muted-foreground active:scale-95 transition-all duration-150"
           aria-label="Change role"
           title="Change role"
         >
@@ -63,7 +64,7 @@ export default function BottomNav({
               key={id}
               onClick={() => onNavigate(id)}
               className={cn(
-                "flex-1 flex flex-col items-center justify-center gap-1 py-3 relative",
+                "flex-1 flex flex-col items-center justify-center gap-1 py-3.5 relative",
                 "active:scale-95 transition-all duration-150",
                 isActive ? "text-primary" : "text-muted-foreground"
               )}

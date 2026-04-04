@@ -758,27 +758,26 @@ export default function BillingScreen({
             <div className="space-y-3">
               {/* Grand total row */}
               <div className="bg-card border border-border rounded-2xl px-4 py-3 flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground font-semibold">
-                    Grand Total
-                    {takeawayCart.length > 0 && " (table + takeaway)"}
-                  </p>
-                </div>
+                <p className="text-xs text-muted-foreground font-semibold">
+                  Grand Total
+                  {takeawayCart.length > 0 && " (table + takeaway)"}
+                </p>
                 <span className="text-foreground font-extrabold text-2xl">
                   ₹{grandTotal}
                 </span>
               </div>
 
-              <div className="flex gap-2">
+              {/* Action buttons — stacked vertically for full mobile tap area */}
+              <div className="flex flex-col gap-2">
                 <button
                   onClick={handlePrintKot}
-                  className="flex-1 py-4 bg-orange-500 text-white rounded-2xl font-extrabold text-base active:scale-95 transition-transform shadow-lg flex items-center justify-center gap-2"
+                  className="w-full py-4 bg-orange-500 text-white rounded-2xl font-extrabold text-base active:scale-95 transition-transform shadow-lg flex items-center justify-center gap-2"
                 >
                   <Printer className="w-5 h-5" /> Print KOT
                 </button>
                 <button
                   onClick={handleGenerateBill}
-                  className="flex-1 py-4 bg-primary text-primary-foreground rounded-2xl font-extrabold text-base active:scale-95 transition-transform shadow-lg"
+                  className="w-full py-4 bg-primary text-primary-foreground rounded-2xl font-extrabold text-base active:scale-95 transition-transform shadow-lg"
                 >
                   Generate Bill
                 </button>
