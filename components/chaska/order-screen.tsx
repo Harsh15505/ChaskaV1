@@ -246,10 +246,10 @@ export default function OrderScreen({
         const cartItem = cart.find((c) => c.item.id === spicePickerItemId);
         if (!cartItem) return null;
         const SPICE_OPTIONS = [
-          { label: "Very Spicy", emoji: "🔥🔥", color: "text-red-600 bg-red-50 border-red-300" },
-          { label: "Spicy",      emoji: "🌶️",   color: "text-orange-600 bg-orange-50 border-orange-300" },
-          { label: "Medium",     emoji: "😊",   color: "text-yellow-700 bg-yellow-50 border-yellow-300" },
-          { label: "Mild",       emoji: "🧊",   color: "text-blue-600 bg-blue-50 border-blue-300" },
+          { label: "Very Spicy", color: "text-red-600 bg-red-50 border-red-200" },
+          { label: "Spicy",      color: "text-orange-600 bg-orange-50 border-orange-200" },
+          { label: "Medium",     color: "text-yellow-700 bg-yellow-50 border-yellow-200" },
+          { label: "Mild",       color: "text-blue-600 bg-blue-50 border-blue-200" },
         ] as const;
         return (
           <div className="fixed inset-0 z-50 flex items-end">
@@ -259,12 +259,12 @@ export default function OrderScreen({
               onClick={() => setSpicePickerItemId(null)}
             />
             {/* Sheet */}
-            <div className="relative w-full bg-card rounded-t-3xl shadow-2xl p-6 pb-10 z-10">
-              <div className="w-10 h-1 bg-muted-foreground/30 rounded-full mx-auto mb-5" />
-              <p className="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-1">Spice Level</p>
-              <p className="text-lg font-extrabold text-foreground mb-5">{cartItem.item.name}</p>
-              <div className="grid grid-cols-2 gap-3">
-                {SPICE_OPTIONS.map(({ label, emoji, color }) => (
+            <div className="relative w-full bg-card rounded-t-3xl shadow-2xl px-5 pt-4 pb-8 z-10">
+              <div className="w-10 h-1 bg-muted-foreground/30 rounded-full mx-auto mb-4" />
+              <p className="text-[11px] font-bold tracking-widest uppercase text-muted-foreground mb-1">Spice Level</p>
+              <p className="text-base font-extrabold text-foreground mb-4">{cartItem.item.name}</p>
+              <div className="grid grid-cols-2 gap-2">
+                {SPICE_OPTIONS.map(({ label, color }) => (
                   <button
                     key={label}
                     onClick={() => {
@@ -272,20 +272,19 @@ export default function OrderScreen({
                       setSpicePickerItemId(null);
                     }}
                     className={cn(
-                      "flex flex-col items-center justify-center gap-1 py-4 rounded-2xl border-2 font-bold text-sm transition-all active:scale-95",
+                      "py-3 rounded-xl border font-bold text-sm transition-all active:scale-95",
                       cartItem.note === label
-                        ? color + " border-current"
+                        ? color
                         : "bg-muted text-muted-foreground border-transparent"
                     )}
                   >
-                    <span className="text-2xl">{emoji}</span>
                     {label}
                   </button>
                 ))}
               </div>
               <button
                 onClick={() => setSpicePickerItemId(null)}
-                className="mt-4 w-full py-3 text-muted-foreground text-sm font-semibold"
+                className="mt-3 w-full py-2.5 text-muted-foreground text-sm font-semibold"
               >
                 Cancel
               </button>
@@ -667,10 +666,14 @@ export default function OrderScreen({
                     <div className="flex items-center gap-2 shrink-0">
                       <button
                         onClick={() => setSpicePickerItemId(c.item.id)}
-                        className="text-base leading-none active:scale-90 transition-transform"
-                        title="Set spice level"
+                        className={cn(
+                          "text-[11px] font-bold px-2 py-0.5 rounded border transition-all active:scale-95",
+                          c.note
+                            ? "text-orange-700 bg-orange-50 border-orange-200"
+                            : "text-muted-foreground bg-muted border-border"
+                        )}
                       >
-                        🌶️
+                        {c.note ?? "Spice"}
                       </button>
                       <span className="text-sm font-semibold text-foreground">₹{c.item.price! * c.quantity}</span>
                     </div>
