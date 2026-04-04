@@ -74,6 +74,7 @@ export default function OrderScreen({
   const [sending, setSending] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [editSentModalOpen, setEditSentModalOpen] = useState(false);
+  const [spicePickerItemId, setSpicePickerItemId] = useState<string | null>(null);
   // Variant picker: holds the base MenuItem whose variants should be displayed
   const [variantPickerItem, setVariantPickerItem] = useState<MenuItem | null>(null);
 
@@ -240,6 +241,58 @@ export default function OrderScreen({
 
   return (
     <div className="flex flex-col min-h-screen bg-background">
+      {/* ── Spice Level Picker Bottom Sheet ─────────────────────────────────── */}
+      {spicePickerItemId && (() => {
+        const cartItem = cart.find((c) => c.item.id === spicePickerItemId);
+        if (!cartItem) return null;
+        const SPICE_OPTIONS = [
+          { label: "Very Spicy", emoji: "🔥🔥", color: "text-red-600 bg-red-50 border-red-300" },
+          { label: "Spicy",      emoji: "🌶️",   color: "text-orange-600 bg-orange-50 border-orange-300" },
+          { label: "Medium",     emoji: "😊",   color: "text-yellow-700 bg-yellow-50 border-yellow-300" },
+          { label: "Mild",       emoji: "🧊",   color: "text-blue-600 bg-blue-50 border-blue-300" },
+        ] as const;
+        return (
+          <div className="fixed inset-0 z-50 flex items-end">
+            {/* Backdrop */}
+            <div
+              className="absolute inset-0 bg-black/50"
+              onClick={() => setSpicePickerItemId(null)}
+            />
+            {/* Sheet */}
+            <div className="relative w-full bg-card rounded-t-3xl shadow-2xl p-6 pb-10 z-10">
+              <div className="w-10 h-1 bg-muted-foreground/30 rounded-full mx-auto mb-5" />
+              <p className="text-xs font-bold tracking-widest uppercase text-muted-foreground mb-1">Spice Level</p>
+              <p className="text-lg font-extrabold text-foreground mb-5">{cartItem.item.name}</p>
+              <div className="grid grid-cols-2 gap-3">
+                {SPICE_OPTIONS.map(({ label, emoji, color }) => (
+                  <button
+                    key={label}
+                    onClick={() => {
+                      updateNote(spicePickerItemId, cartItem.note === label ? "" : label);
+                      setSpicePickerItemId(null);
+                    }}
+                    className={cn(
+                      "flex flex-col items-center justify-center gap-1 py-4 rounded-2xl border-2 font-bold text-sm transition-all active:scale-95",
+                      cartItem.note === label
+                        ? color + " border-current"
+                        : "bg-muted text-muted-foreground border-transparent"
+                    )}
+                  >
+                    <span className="text-2xl">{emoji}</span>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => setSpicePickerItemId(null)}
+                className="mt-4 w-full py-3 text-muted-foreground text-sm font-semibold"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        );
+      })()}
       {/* ── Variant Picker Bottom Sheet ─────────────────────────────────── */}
       {variantPickerItem && (
         <div className="fixed inset-0 z-50 flex items-end">
@@ -595,40 +648,32 @@ export default function OrderScreen({
         <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border px-4 pt-3 pb-6 shadow-2xl space-y-3">
           {cart.length > 0 && (
             <>
-              <div className="max-h-40 overflow-y-auto space-y-2">
-                {cart.map((c) => {
-                  const SPICE_LEVELS = ["Very Spicy", "Spicy", "Medium", "Mild"] as const;
-                  return (
-                    <div key={c.item.id} className="flex flex-col gap-2 border-b border-border/50 pb-2 last:border-0 last:pb-0">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-foreground font-medium">
-                          <span className="text-primary font-bold">{c.quantity}×</span>{" "}
-                          {c.item.name}
+              <div className="max-h-40 overflow-y-auto space-y-1.5">
+                {cart.map((c) => (
+                  <div key={c.item.id} className="flex items-center justify-between border-b border-border/50 pb-1.5 last:border-0 last:pb-0">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <span className="text-sm text-foreground font-medium truncate">
+                        <span className="text-primary font-bold">{c.quantity}×</span>{" "}
+                        {c.item.name}
+                      </span>
+                      {c.note && (
+                        <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700">
+                          {c.note}
                         </span>
-                        <span className="text-sm font-semibold text-foreground">
-                          ₹{c.item.price! * c.quantity}
-                        </span>
-                      </div>
-                      {/* Spice level selector */}
-                      <div className="flex gap-1.5 flex-wrap pl-5">
-                        {SPICE_LEVELS.map((level) => (
-                          <button
-                            key={level}
-                            onClick={() => updateNote(c.item.id, c.note === level ? "" : level)}
-                            className={cn(
-                              "px-2.5 py-1 rounded-full text-[11px] font-bold border transition-all active:scale-95",
-                              c.note === level
-                                ? "bg-primary text-primary-foreground border-primary"
-                                : "bg-transparent text-muted-foreground border-border"
-                            )}
-                          >
-                            {level}
-                          </button>
-                        ))}
-                      </div>
+                      )}
                     </div>
-                  );
-                })}
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => setSpicePickerItemId(c.item.id)}
+                        className="text-base leading-none active:scale-90 transition-transform"
+                        title="Set spice level"
+                      >
+                        🌶️
+                      </button>
+                      <span className="text-sm font-semibold text-foreground">₹{c.item.price! * c.quantity}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground text-sm">Total</span>
