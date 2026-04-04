@@ -595,27 +595,40 @@ export default function OrderScreen({
         <div className="fixed bottom-0 left-0 right-0 bg-card border-t border-border px-4 pt-3 pb-6 shadow-2xl space-y-3">
           {cart.length > 0 && (
             <>
-              <div className="max-h-32 overflow-y-auto space-y-2">
-                {cart.map((c) => (
-                  <div key={c.item.id} className="flex flex-col gap-1.5 border-b border-border/50 pb-2 last:border-0 last:pb-0">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-foreground font-medium">
-                        <span className="text-primary font-bold">{c.quantity}×</span>{" "}
-                        {c.item.name}
-                      </span>
-                      <span className="text-sm font-semibold text-foreground">
-                        ₹{c.item.price! * c.quantity}
-                      </span>
+              <div className="max-h-40 overflow-y-auto space-y-2">
+                {cart.map((c) => {
+                  const SPICE_LEVELS = ["Very Spicy", "Spicy", "Medium", "Mild"] as const;
+                  return (
+                    <div key={c.item.id} className="flex flex-col gap-2 border-b border-border/50 pb-2 last:border-0 last:pb-0">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-foreground font-medium">
+                          <span className="text-primary font-bold">{c.quantity}×</span>{" "}
+                          {c.item.name}
+                        </span>
+                        <span className="text-sm font-semibold text-foreground">
+                          ₹{c.item.price! * c.quantity}
+                        </span>
+                      </div>
+                      {/* Spice level selector */}
+                      <div className="flex gap-1.5 flex-wrap pl-5">
+                        {SPICE_LEVELS.map((level) => (
+                          <button
+                            key={level}
+                            onClick={() => updateNote(c.item.id, c.note === level ? "" : level)}
+                            className={cn(
+                              "px-2.5 py-1 rounded-full text-[11px] font-bold border transition-all active:scale-95",
+                              c.note === level
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : "bg-transparent text-muted-foreground border-border"
+                            )}
+                          >
+                            {level}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                    <input
-                      type="text"
-                      placeholder="Add note (e.g. spicy)..."
-                      value={c.note || ""}
-                      onChange={(e) => updateNote(c.item.id, e.target.value)}
-                      className="ml-6 text-xs bg-muted/30 border border-border/60 hover:border-primary/50 focus:border-primary rounded-md px-2 py-1.5 outline-none transition-colors text-muted-foreground focus:text-foreground placeholder:text-muted-foreground/50"
-                    />
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground text-sm">Total</span>

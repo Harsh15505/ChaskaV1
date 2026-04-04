@@ -8,7 +8,6 @@ import RoleSelect from "@/components/chaska/role-select";
 import TableDashboard from "@/components/chaska/table-dashboard";
 import OrderScreen from "@/components/chaska/order-screen";
 import BillingScreen from "@/components/chaska/billing-screen";
-import PendingServices from "@/components/chaska/pending-services";
 import BottomNav, { AppView } from "@/components/chaska/bottom-nav";
 import { seedTablesIfEmpty } from "@/services/tables";
 
@@ -98,13 +97,6 @@ export default function Page() {
           orders={orders}
           loading={tablesLoading || ordersLoading}
           onBack={() => setActiveView("tables")}
-        />
-      )}
-
-      {activeView === "pending" && (
-        <PendingServices
-          tables={tables}
-          orders={orders}
         />
       )}
 

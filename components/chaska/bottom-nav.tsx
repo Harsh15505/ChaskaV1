@@ -2,9 +2,9 @@
 
 import { AppRole } from "@/lib/chaska-data";
 import { cn } from "@/lib/utils";
-import { LayoutGrid, Receipt, RefreshCcw, BellRing } from "lucide-react";
+import { LayoutGrid, Receipt, RefreshCcw } from "lucide-react";
 
-export type AppView = "tables" | "billing" | "pending";
+export type AppView = "tables" | "billing";
 
 interface BottomNavProps {
   activeView: AppView;
@@ -20,7 +20,6 @@ const ALL_NAV_ITEMS: {
   roles: AppRole[]; // which roles can see this tab
 }[] = [
   { id: "tables",  label: "Tables",  Icon: LayoutGrid, roles: ["waiter", "billing"] },
-  { id: "pending", label: "Serves",  Icon: BellRing,   roles: ["waiter", "billing"] },
   { id: "billing", label: "Billing", Icon: Receipt,    roles: ["billing"] },
 ];
 

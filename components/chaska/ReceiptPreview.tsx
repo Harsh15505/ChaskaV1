@@ -100,11 +100,13 @@ export default function ReceiptPreview({
         />
       )}
 
-      <div className="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-4">
-        <div className="w-full max-w-sm bg-card rounded-3xl shadow-2xl border border-border overflow-hidden">
+      {/* ── Modal backdrop ── */}
+      <div className="fixed inset-0 z-40 bg-black/60 flex items-end justify-center">
+        {/* ── Modal sheet — scrollable, capped at 90vh ── */}
+        <div className="w-full max-w-sm bg-card rounded-t-3xl shadow-2xl border-t border-border flex flex-col max-h-[90vh]">
 
-          {/* ── Header ── */}
-          <div className="relative bg-primary px-6 pt-6 pb-4 text-primary-foreground text-center">
+          {/* ── Header (sticky, never scrolls away) ── */}
+          <div className="relative bg-primary px-6 pt-6 pb-4 text-primary-foreground text-center shrink-0 rounded-t-3xl">
             <button
               onClick={onClose}
               className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center rounded-full bg-primary-foreground/20 active:scale-90 transition-transform"
@@ -117,119 +119,128 @@ export default function ReceiptPreview({
             </p>
             <p className="text-2xl font-extrabold">Table {tableNumber}</p>
             <p className="text-xs opacity-60 mt-1">{time}</p>
-            <p className="text-xs font-bold opacity-80 mt-1 tracking-widest">
-              Bill #{billNumber}
-            </p>
-          </div>
-
-          {/* ── Item List ── */}
-          <div className="px-5 py-4 space-y-2 max-h-52 overflow-y-auto">
-            <div className="flex text-[11px] font-bold uppercase tracking-wider text-muted-foreground pb-1 border-b border-border">
-              <span className="flex-1">Item</span>
-              <span className="w-10 text-center">Qty</span>
-              <span className="w-16 text-right">Price</span>
-            </div>
-
-            {items.map((item) => (
-              <div key={item.id} className="flex items-center text-sm">
-                <span className="flex-1 text-foreground font-medium leading-tight pr-2">
-                  {item.name}
-                </span>
-                <span className="w-10 text-center text-muted-foreground font-bold">
-                  {item.quantity}
-                </span>
-                <span className="w-16 text-right font-semibold text-foreground">
-                  ₹{item.total}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          {/* ── Payment Options (hidden for KOT) ── */}
-          {!receiptData.isKot && (
-            <div className="mx-5 border-t-2 border-dashed border-border pt-4 pb-4 space-y-3">
-              {/* Subtotal */}
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-muted-foreground font-semibold">Subtotal</span>
-                <span className="text-foreground font-extrabold">₹{totalAmount}</span>
-              </div>
-              
-              {/* Discount Input */}
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground font-semibold text-sm">Discount (₹)</span>
-                <input
-                  type="number"
-                  placeholder="0"
-                  value={discount || ""}
-                  onChange={(e) => setDiscount(Math.max(0, parseInt(e.target.value) || 0))}
-                  className="w-24 bg-muted border border-border rounded-lg px-2 py-1 text-right text-sm font-bold text-destructive outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-
-              {/* Cash Paid Input */}
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground font-semibold text-sm">Cash Paid (₹)</span>
-                <input
-                  type="number"
-                  placeholder="0"
-                  value={cashPaid || ""}
-                  onChange={(e) => setCashPaid(Math.max(0, parseInt(e.target.value) || 0))}
-                  className="w-24 bg-muted border border-border rounded-lg px-2 py-1 text-right text-sm font-bold text-emerald-600 outline-none focus:ring-2 focus:ring-secondary"
-                />
-              </div>
-
-              {/* Final Totals */}
-              <div className="pt-2 border-t border-border flex items-center justify-between">
-                <span className="text-foreground font-bold text-sm">Pending UPI</span>
-                <span className="text-secondary font-extrabold text-2xl">₹{upiPending}</span>
-              </div>
-            </div>
-          )}
-
-          {/* ── QR Code (hidden for KOT or zero balance) ── */}
-          {!receiptData.isKot && upiPending > 0 ? (
-            <div className="flex flex-col items-center pb-4 gap-2">
-              <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
-                Scan to Pay via UPI
+            {!receiptData.isKot && (
+              <p className="text-xs font-bold opacity-80 mt-1 tracking-widest">
+                Bill #{billNumber}
               </p>
-              <div className="bg-white p-3 rounded-2xl shadow-md">
-                <QRCodeSVG
-                  value={dynamicUpiString}
-                  size={148}
-                  bgColor="#ffffff"
-                  fgColor="#1a1a1a"
-                  level="M"
-                />
+            )}
+          </div>
+
+          {/* ── Scrollable body ── */}
+          <div className="overflow-y-auto flex-1">
+
+            {/* ── Item List ── */}
+            <div className="px-5 py-4 space-y-2">
+              <div className="flex text-[11px] font-bold uppercase tracking-wider text-muted-foreground pb-1 border-b border-border">
+                <span className="flex-1">Item</span>
+                <span className="w-10 text-center">Qty</span>
+                <span className="w-16 text-right">Price</span>
               </div>
-              <p className="text-[11px] text-muted-foreground font-bold">UPI Amount: ₹{upiPending}</p>
-            </div>
-          ) : !receiptData.isKot && upiPending === 0 ? (
-            <div className="flex flex-col items-center pb-4 gap-2">
-               <div className="bg-emerald-100 text-emerald-800 px-4 py-3 rounded-xl text-sm font-bold flex items-center gap-2">
-                 <CheckCircle2 className="w-5 h-5" /> Account Settled
-               </div>
-            </div>
-          ) : null}
 
-          {/* ── Printer connection status ── */}
-          {isNative && (
-            <button
-              onClick={() => setShowConnect(true)}
-              className="mx-5 mb-2 w-auto flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-muted/50 active:scale-95 transition-transform"
-            >
-              <Bluetooth className="w-4 h-4 text-primary shrink-0" />
-              <span className="text-sm font-semibold text-foreground flex-1 text-left truncate">
-                {printerName ?? "No printer connected"}
-              </span>
-              {printerAddress && (
-                <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
-              )}
-            </button>
-          )}
+              {items.map((item) => (
+                <div key={item.id} className="flex items-center text-sm">
+                  <span className="flex-1 text-foreground font-medium leading-tight pr-2">
+                    {item.name}
+                  </span>
+                  <span className="w-10 text-center text-muted-foreground font-bold">
+                    {item.quantity}
+                  </span>
+                  <span className="w-16 text-right font-semibold text-foreground">
+                    ₹{item.total}
+                  </span>
+                </div>
+              ))}
+            </div>
 
-          {/* ── Actions ── */}
-          <div className="px-5 pb-6 space-y-2">
-            {/* Print bill — only shown on Android */}
+            {/* ── Payment Options (hidden for KOT) ── */}
+            {!receiptData.isKot && (
+              <div className="mx-5 border-t-2 border-dashed border-border pt-4 pb-4 space-y-3">
+                {/* Subtotal */}
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground font-semibold">Subtotal</span>
+                  <span className="text-foreground font-extrabold">₹{totalAmount}</span>
+                </div>
+
+                {/* Discount Input */}
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground font-semibold text-sm shrink-0">Discount (₹)</span>
+                  <input
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    placeholder="0"
+                    value={discount || ""}
+                    onChange={(e) => setDiscount(Math.max(0, parseInt(e.target.value) || 0))}
+                    className="w-24 bg-muted border border-border rounded-xl px-3 py-2 text-right text-sm font-bold text-destructive outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+
+                {/* Cash Paid Input */}
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-muted-foreground font-semibold text-sm shrink-0">Cash Paid (₹)</span>
+                  <input
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    placeholder="0"
+                    value={cashPaid || ""}
+                    onChange={(e) => setCashPaid(Math.max(0, parseInt(e.target.value) || 0))}
+                    className="w-24 bg-muted border border-border rounded-xl px-3 py-2 text-right text-sm font-bold text-emerald-600 outline-none focus:ring-2 focus:ring-secondary"
+                  />
+                </div>
+
+                {/* Pending UPI */}
+                <div className="pt-2 border-t border-border flex items-center justify-between">
+                  <span className="text-foreground font-bold text-sm">Pending UPI</span>
+                  <span className="text-secondary font-extrabold text-2xl">₹{upiPending}</span>
+                </div>
+              </div>
+            )}
+
+            {/* ── QR Code (hidden for KOT or zero balance) ── */}
+            {!receiptData.isKot && upiPending > 0 ? (
+              <div className="flex flex-col items-center pb-4 gap-3">
+                <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">
+                  Scan to Pay via UPI
+                </p>
+                <div className="bg-white p-3 rounded-2xl shadow-md">
+                  <QRCodeSVG
+                    value={dynamicUpiString}
+                    size={148}
+                    bgColor="#ffffff"
+                    fgColor="#1a1a1a"
+                    level="M"
+                  />
+                </div>
+                <p className="text-[11px] text-muted-foreground font-bold">UPI Amount: ₹{upiPending}</p>
+              </div>
+            ) : !receiptData.isKot && upiPending === 0 ? (
+              <div className="flex flex-col items-center pb-4">
+                <div className="bg-emerald-100 text-emerald-800 px-4 py-3 rounded-xl text-sm font-bold flex items-center gap-2">
+                  <CheckCircle2 className="w-5 h-5" /> Account Settled
+                </div>
+              </div>
+            ) : null}
+
+          </div>{/* end scrollable body */}
+
+          {/* ── Sticky footer: printer + action buttons ── */}
+          <div className="shrink-0 border-t border-border bg-card px-5 pt-3 pb-6 space-y-2">
+            {/* Printer connection status */}
+            {isNative && (
+              <button
+                onClick={() => setShowConnect(true)}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-muted/50 active:scale-95 transition-transform"
+              >
+                <Bluetooth className="w-4 h-4 text-primary shrink-0" />
+                <span className="text-sm font-semibold text-foreground flex-1 text-left truncate">
+                  {printerName ?? "No printer connected"}
+                </span>
+                {printerAddress && (
+                  <CheckCircle2 className="w-4 h-4 text-primary shrink-0" />
+                )}
+              </button>
+            )}
+
+            {/* Print button — Android only */}
             {isNative && (
               <button
                 onClick={handlePrint}
@@ -262,8 +273,10 @@ export default function ReceiptPreview({
               Back to Edit
             </button>
           </div>
+
         </div>
       </div>
     </>
   );
 }
+
