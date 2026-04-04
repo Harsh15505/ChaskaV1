@@ -271,6 +271,10 @@ public class PrinterPlugin extends Plugin {
         // Footer
         sb.append("[C]Thank you for dining with us!\n");
         sb.append("[C]Have a wonderful day\n");
+        sb.append("[L]\n");
+        
+        // Large table number at the bottom for easy waiter visibility
+        sb.append("[C]<b><font size='big'>TABLE ").append(tableNumber).append("</font></b>\n");
 
         // Feed paper before cut
         sb.append("[L]\n[L]\n[L]\n");
