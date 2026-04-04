@@ -13,7 +13,7 @@ import {
 import { createOrder, requestBill, updateOrderItems } from "@/services/orders";
 import { cancelBillRequest } from "@/services/tables";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, ChevronRight, Minus, Plus, ShoppingBag, X, Search } from "lucide-react";
+import { ArrowLeft, ChevronRight, ChevronUp, ChevronDown, Minus, Plus, ShoppingBag, X, Search } from "lucide-react";
 import { toast } from "sonner";
 
 interface OrderScreenProps {
@@ -75,6 +75,7 @@ export default function OrderScreen({
   const [searchQuery, setSearchQuery] = useState("");
   const [editSentModalOpen, setEditSentModalOpen] = useState(false);
   const [spicePickerItemId, setSpicePickerItemId] = useState<string | null>(null);
+  const [isCartExpanded, setIsCartExpanded] = useState(false);
   // Variant picker: holds the base MenuItem whose variants should be displayed
   const [variantPickerItem, setVariantPickerItem] = useState<MenuItem | null>(null);
 
@@ -649,43 +650,55 @@ export default function OrderScreen({
              style={{ paddingBottom: "calc(1.5rem + env(safe-area-inset-bottom))" }}>
           {cart.length > 0 && (
             <>
-              <div className="max-h-40 overflow-y-auto space-y-1.5">
-                {cart.map((c) => (
-                  <div key={c.item.id} className="flex items-center justify-between border-b border-border/50 pb-1.5 last:border-0 last:pb-0">
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <span className="text-sm text-foreground font-medium truncate">
-                        <span className="text-primary font-bold">{c.quantity}×</span>{" "}
-                        {c.item.name}
-                      </span>
-                      {c.note && (
-                        <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700">
-                          {c.note}
+              {isCartExpanded && (
+                <div className="max-h-40 overflow-y-auto space-y-1.5 pb-2 border-b border-border/50">
+                  {cart.map((c) => (
+                    <div key={c.item.id} className="flex items-center justify-between pb-1.5 last:pb-0">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <span className="text-sm text-foreground font-medium truncate">
+                          <span className="text-primary font-bold">{c.quantity}×</span>{" "}
+                          {c.item.name}
                         </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        onClick={() => setSpicePickerItemId(c.item.id)}
-                        className={cn(
-                          "text-[11px] font-bold px-2 py-0.5 rounded border transition-all active:scale-95",
-                          c.note
-                            ? "text-orange-700 bg-orange-50 border-orange-200"
-                            : "text-muted-foreground bg-muted border-border"
+                        {c.note && (
+                          <span className="shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-orange-100 text-orange-700">
+                            {c.note}
+                          </span>
                         )}
-                      >
-                        {c.note ?? "Spice"}
-                      </button>
-                      <span className="text-sm font-semibold text-foreground">₹{c.item.price! * c.quantity}</span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={() => setSpicePickerItemId(c.item.id)}
+                          className={cn(
+                            "text-[11px] font-bold px-2 py-0.5 rounded border transition-all active:scale-95",
+                            c.note
+                              ? "text-orange-700 bg-orange-50 border-orange-200"
+                              : "text-muted-foreground bg-muted border-border"
+                          )}
+                        >
+                          {c.note ?? "Spice"}
+                        </button>
+                        <span className="text-sm font-semibold text-foreground">₹{c.item.price! * c.quantity}</span>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground text-sm">Total</span>
+                  ))}
+                </div>
+              )}
+              <button 
+                onClick={() => setIsCartExpanded(!isCartExpanded)}
+                className="w-full flex items-center justify-between active:scale-[0.99] transition-transform"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="text-muted-foreground text-sm font-semibold">Total</span>
+                  {isCartExpanded ? (
+                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                  )}
+                </div>
                 <span className="text-foreground font-extrabold text-xl">
                   ₹{totalPrice}
                 </span>
-              </div>
+              </button>
             </>
           )}
 
