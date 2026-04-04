@@ -72,11 +72,19 @@ export default function ReceiptPreview({
         cashPaid: cashPaid || 0,
         upiString: dynamicUpiString
       };
-      await printReceipt(printData, printerAddress);
-      toast.success(receiptData.isKot ? "KOT printed!" : "Receipt printed!");
 
-      if (receiptData.isKot && onKotPrinted) {
-        onKotPrinted();
+      // Print first copy
+      await printReceipt(printData, printerAddress);
+
+      if (receiptData.isKot) {
+        // KOT: give waiter 5 seconds to tear/cut, then print copy 2
+        toast("Copy 1 done — tear now, copy 2 in 5s…", { duration: 5000 });
+        await new Promise((resolve) => setTimeout(resolve, 5000));
+        await printReceipt(printData, printerAddress);
+        toast.success("KOT printed! (2 copies)");
+        if (onKotPrinted) onKotPrinted();
+      } else {
+        toast.success("Receipt printed!");
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Print failed";
