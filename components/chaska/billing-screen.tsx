@@ -770,12 +770,6 @@ export default function BillingScreen({
               {/* Action buttons — stacked vertically for full mobile tap area */}
               <div className="flex flex-col gap-2">
                 <button
-                  onClick={handlePrintKot}
-                  className="w-full py-4 bg-orange-500 text-white rounded-2xl font-extrabold text-base active:scale-95 transition-transform shadow-lg flex items-center justify-center gap-2"
-                >
-                  <Printer className="w-5 h-5" /> Print KOT
-                </button>
-                <button
                   onClick={handleGenerateBill}
                   className="w-full py-4 bg-primary text-primary-foreground rounded-2xl font-extrabold text-base active:scale-95 transition-transform shadow-lg"
                 >

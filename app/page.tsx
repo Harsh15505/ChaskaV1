@@ -11,6 +11,7 @@ import OrderScreen from "@/components/chaska/order-screen";
 import BillingScreen from "@/components/chaska/billing-screen";
 import BottomNav, { AppView } from "@/components/chaska/bottom-nav";
 import { seedTablesIfEmpty } from "@/services/tables";
+import { useKotAutoPrint } from "@/hooks/useKotAutoPrint";
 
 const ROLE_KEY = "chaska_role";
 const ROLE_TS_KEY = "chaska_role_ts";
@@ -24,6 +25,9 @@ export default function Page() {
 
   const { tables, loading: tablesLoading } = useTables();
   const { orders, loading: ordersLoading } = useOrders();
+
+  // ── Auto-KOT Background Printer ─────────────────────────────────────────────
+  useKotAutoPrint(role, orders, tables);
 
   // ── On mount: restore role from localStorage (with expiry check) ────────────
   useEffect(() => {

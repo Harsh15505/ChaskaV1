@@ -127,13 +127,17 @@ export async function createTakeawayOrder(
 
 /**
  * Merge new/updated items into an existing order.
+ * Pass resetKotPrinted=true when a waiter adds new items so the billing
+ * device's auto-print hook detects the change and prints a fresh KOT.
  */
 export async function updateOrderItems(
   orderId: string,
-  newItems: OrderItem[]
+  newItems: OrderItem[],
+  resetKotPrinted = false
 ): Promise<void> {
   await updateDoc(doc(db, ORDERS_COLLECTION, orderId), {
     items: newItems,
+    ...(resetKotPrinted ? { kotPrinted: false } : {}),
     updatedAt: serverTimestamp(),
   });
 }
