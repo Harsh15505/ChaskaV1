@@ -12,6 +12,7 @@ import {
   serverTimestamp,
   Timestamp,
   Unsubscribe,
+  runTransaction,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import {
@@ -168,6 +169,54 @@ export async function markOrdersKotPrinted(orderIds: string[]): Promise<void> {
     });
   });
   await batch.commit();
+}
+
+/**
+ * Safely claims a KOT print job to prevent multiple billing devices from printing simultaneously.
+ * Uses a strict Firestore transaction. A lock is valid for 20 seconds.
+ * Returns true if claimed successfully, false if already printed or currently locked by another device.
+ */
+export async function claimKotPrintJob(orderIds: string[]): Promise<boolean> {
+  if (!orderIds.length) return false;
+
+  try {
+    await runTransaction(db, async (transaction) => {
+      // 1. Read all documents first
+      const docsToUpdate = [];
+      for (const id of orderIds) {
+        const ref = doc(db, ORDERS_COLLECTION, id);
+        const orderDoc = await transaction.get(ref);
+        if (!orderDoc.exists()) throw new Error("Order not found");
+
+        const data = orderDoc.data();
+        
+        // If it's already fully printed, abort.
+        if (data.kotPrinted === true) throw new Error("Already printed");
+
+        // If it was locked less than 20 seconds ago, another device is handling it.
+        if (data.kotPrintLockedAt) {
+          const lockedAt = (data.kotPrintLockedAt as Timestamp).toMillis();
+          if (Date.now() - lockedAt < 20000) {
+            throw new Error("Currently locked by another device");
+          }
+        }
+
+        docsToUpdate.push(ref);
+      }
+
+      // 2. Perform updates (claiming)
+      for (const ref of docsToUpdate) {
+        transaction.update(ref, {
+          kotPrintLockedAt: serverTimestamp()
+        });
+      }
+    });
+
+    return true; // Successfully claimed
+  } catch (err) {
+    // Transaction aborted due to throwing an error (e.g. locked, printed, not found)
+    return false;
+  }
 }
 
 /**

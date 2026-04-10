@@ -4,7 +4,7 @@ import { useEffect, useRef } from "react";
 import { FirestoreOrder, FirestoreTable } from "@/lib/chaska-data";
 import { printReceipt } from "@/lib/printer";
 import { generateKotData } from "@/lib/receipt";
-import { markOrdersKotPrinted } from "@/services/orders";
+import { markOrdersKotPrinted, claimKotPrintJob } from "@/services/orders";
 import { getNextKotNumber } from "@/services/billing-counter";
 import { getSavedPrinter } from "@/components/chaska/PrinterConnect";
 
@@ -77,6 +77,14 @@ export function useKotAutoPrint(
         orderIds.forEach(id => inFlightRef.current.add(id));
 
         try {
+          // ── Distributed Lock Claim ──
+          const claimed = await claimKotPrintJob(orderIds);
+          if (!claimed) {
+            // Another billing device claimed this print job (or it's already done). 
+             orderIds.forEach(id => inFlightRef.current.delete(id));
+             continue;
+          }
+
           const table = tables.find(t => t.id === tableId);
           if (!table) throw new Error("Table not found for order");
 
