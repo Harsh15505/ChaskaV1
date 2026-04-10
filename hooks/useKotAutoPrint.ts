@@ -26,6 +26,8 @@ export function useKotAutoPrint(
 ) {
   // Store the IDs of orders currently in the process of being printed to avoid overlap
   const inFlightRef = useRef<Set<string>>(new Set());
+  // Global lock to ensure only one synchronous printing block runs at a time (preventing BT collision)
+  const isPrintingRef = useRef(false);
 
   useEffect(() => {
     // ONLY run on the billing device
@@ -39,6 +41,9 @@ export function useKotAutoPrint(
     if (unprintedOrders.length === 0) return;
 
     const intervalId = setInterval(async () => {
+      // Abort if the previous print loop is still sleeping during the 5-second cut delay
+      if (isPrintingRef.current) return;
+
       // Re-evaluate unprinted orders using the latest closure scope
       // Actually, since interval captures closure, we should just process the ones
       // we had at the time the effect fired. 
@@ -62,6 +67,9 @@ export function useKotAutoPrint(
 
       // If nothing new to print, just return
       if (tableOrderGroups.size === 0) return;
+
+      // Lock global printing process so overlaps wait
+      isPrintingRef.current = true;
 
       for (const [tableId, tableOrders] of Array.from(tableOrderGroups.entries())) {
         // Mark these orders as in-flight
@@ -99,7 +107,10 @@ export function useKotAutoPrint(
           orderIds.forEach(id => inFlightRef.current.delete(id));
         }
       }
-    }, 4000); // Poll every 4 seconds
+
+      // Unlock global printing after all tables finish
+      isPrintingRef.current = false;
+    }, 2000); // Poll every 2 seconds
 
     return () => clearInterval(intervalId);
   }, [role, orders, tables]);
