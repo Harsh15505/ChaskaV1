@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FirestoreOrder, FirestoreTable, MenuCategory, MENU_ITEMS, MenuItem } from "@/lib/chaska-data";
-import { clearTable, updateOrderItems, createTakeawayOrder, markOrdersKotPrinted } from "@/services/orders";
+import { clearTable, updateOrderItems, createTakeawayOrder, markOrdersKotPrinted, subscribeTodayRevenue } from "@/services/orders";
 import { getNextBillNumber, getNextKotNumber } from "@/services/billing-counter";
 import { generateReceipt, generateKotData } from "@/lib/receipt";
 import type { ReceiptData } from "@/lib/receipt";
@@ -74,6 +74,13 @@ export default function BillingScreen({
   const [sendingToKitchen, setSendingToKitchen] = useState(false);
   // Bill number is assigned once per table session — reused if Generate Bill is tapped again
   const [billNumberForTable, setBillNumberForTable] = useState<string | null>(null);
+  // Today's revenue (resets at 12 PM each day)
+  const [todayRevenue, setTodayRevenue] = useState<number>(0);
+
+  useEffect(() => {
+    const unsub = subscribeTodayRevenue(setTodayRevenue);
+    return unsub;
+  }, []);
 
   // ── Takeaway state ───────────────────────────────────────────────────────
   const [takeawayOpen, setTakeawayOpen] = useState(false);
@@ -372,6 +379,11 @@ export default function BillingScreen({
               <h1 className="text-xl font-extrabold text-foreground leading-tight">
                 Billing
               </h1>
+            </div>
+            {/* Today's Revenue */}
+            <div className="flex flex-col items-end">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider leading-none mb-0.5">Today</p>
+              <p className="text-base font-extrabold text-primary leading-none">₹{todayRevenue.toLocaleString("en-IN")}</p>
             </div>
             {/* Takeaway badge */}
             {takeawayCart.length > 0 && (

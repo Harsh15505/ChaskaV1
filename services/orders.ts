@@ -62,6 +62,51 @@ export function subscribeToActiveOrders(
 }
 
 /**
+ * Returns the start of the current "business day" — 12:00 PM today.
+ * If it is currently before noon, the business day started at 12:00 PM yesterday.
+ * This accounts for late-night service running past midnight.
+ */
+export function getBusinessDayStart(): Date {
+  const now = new Date();
+  const cutoff = new Date(now);
+  cutoff.setHours(12, 0, 0, 0); // noon today
+  if (now < cutoff) {
+    // Before noon today → business day started at noon yesterday
+    cutoff.setDate(cutoff.getDate() - 1);
+  }
+  return cutoff;
+}
+
+/**
+ * Subscribes to today's billed orders (since last 12:00 PM cutoff).
+ * Streams the total revenue as a number.
+ * Only active on the billing screen.
+ */
+export function subscribeTodayRevenue(
+  callback: (totalRevenue: number) => void
+): Unsubscribe {
+  const cutoff = getBusinessDayStart();
+
+  const q = query(
+    collection(db, ORDERS_COLLECTION),
+    where("status", "==", "billed"),
+    where("updatedAt", ">=", Timestamp.fromDate(cutoff))
+  );
+
+  return onSnapshot(q, (snap) => {
+    let total = 0;
+    snap.docs.forEach((d) => {
+      const data = d.data() as Record<string, unknown>;
+      const items = (data.items as OrderItem[]) ?? [];
+      items.forEach((item) => {
+        total += (item.price ?? 0) * (item.quantity ?? 0);
+      });
+    });
+    callback(total);
+  });
+}
+
+/**
  * Subscribe to orders for a specific table.
  * Used on the order screen to load existing items.
  */
