@@ -4,7 +4,7 @@ import { AppRole } from "@/lib/chaska-data";
 import { cn } from "@/lib/utils";
 import { LayoutGrid, Receipt, RefreshCcw } from "lucide-react";
 
-export type AppView = "tables" | "billing";
+export type AppView = "tables" | "billing" | "history";
 
 interface BottomNavProps {
   activeView: AppView;

@@ -342,3 +342,83 @@ export async function clearTable(
 // Receipt generation has moved to lib/receipt.ts
 // Use: import { generateReceipt, formatReceiptForPrint } from "@/lib/receipt"
 // or:  import { generateReceipt } from "@/services/orders"  (re-exported above)
+
+export interface BillHistoryEntry {
+  /** Unique key for this bill group (tableId + billing session approx. timestamp) */
+  key: string;
+  tableId: string;
+  tableNumber: number | null; // null for takeaway-only
+  billedAt: Date;
+  orders: FirestoreOrder[];
+  total: number;
+  itemCount: number;
+  isTableBill: boolean;
+}
+
+/**
+ * Subscribes to all billed orders from the last 30 days.
+ * Groups them into BillHistoryEntry objects (one per clear-table event).
+ * Calls callback with the list sorted newest-first.
+ *
+ * NOTE: requires the composite Firestore index (status ASC, updatedAt ASC)
+ * that already exists for subscribeTodayRevenue.
+ */
+export function subscribeBillHistory(
+  callback: (entries: BillHistoryEntry[]) => void
+): Unsubscribe {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 30);
+
+  const q = query(
+    collection(db, ORDERS_COLLECTION),
+    where("status", "==", "billed"),
+    where("updatedAt", ">=", Timestamp.fromDate(cutoff))
+  );
+
+  return onSnapshot(q, (snap) => {
+    const allOrders: FirestoreOrder[] = snap.docs.map((d) =>
+      toOrder(d.id, d.data() as Record<string, unknown>)
+    );
+
+    // Group by tableId + approximate billing session window (30-minute bucket)
+    // Two orders belong to the same bill if they share tableId and their
+    // updatedAt timestamps are within 30 minutes of each other.
+    const groups = new Map<string, FirestoreOrder[]>();
+
+    allOrders.forEach((order) => {
+      // Bucket timestamp to nearest 30-minute window
+      const ts = order.updatedAt.getTime();
+      const bucket = Math.floor(ts / (30 * 60 * 1000));
+      const key = `${order.tableId}::${bucket}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(order);
+    });
+
+    const entries: BillHistoryEntry[] = Array.from(groups.entries()).map(
+      ([key, orders]) => {
+        const billedAt = new Date(
+          Math.max(...orders.map((o) => o.updatedAt.getTime()))
+        );
+        const total = orders.reduce(
+          (sum, o) =>
+            sum + o.items.reduce((s, i) => s + i.price * i.quantity, 0),
+          0
+        );
+        const itemCount = orders.reduce(
+          (sum, o) => sum + o.items.reduce((s, i) => s + i.quantity, 0),
+          0
+        );
+        // Try to derive table number from tableId (e.g. "table_5" → 5)
+        const tableId = orders[0].tableId;
+        const match = tableId.match(/(\d+)$/);
+        const tableNumber = match ? parseInt(match[1], 10) : null;
+        const isTableBill = !orders.every((o) => o.orderType === "takeaway");
+        return { key, tableId, tableNumber, billedAt, orders, total, itemCount, isTableBill };
+      }
+    );
+
+    // Sort newest first
+    entries.sort((a, b) => b.billedAt.getTime() - a.billedAt.getTime());
+    callback(entries);
+  });
+}

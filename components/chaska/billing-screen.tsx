@@ -28,6 +28,7 @@ interface BillingScreenProps {
   orders: FirestoreOrder[];
   loading: boolean;
   onBack: () => void;
+  onViewHistory: () => void;
 }
 
 interface TakeawayItem {
@@ -67,6 +68,7 @@ export default function BillingScreen({
   orders,
   loading,
   onBack,
+  onViewHistory,
 }: BillingScreenProps) {
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
@@ -380,11 +382,15 @@ export default function BillingScreen({
                 Billing
               </h1>
             </div>
-            {/* Today's Revenue */}
-            <div className="flex flex-col items-end">
+            {/* Today's Revenue — tapping opens Bill History */}
+            <button
+              onClick={onViewHistory}
+              className="flex flex-col items-end active:scale-90 transition-transform"
+              aria-label="View bill history"
+            >
               <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider leading-none mb-0.5">Today</p>
               <p className="text-base font-extrabold text-primary leading-none">₹{todayRevenue.toLocaleString("en-IN")}</p>
-            </div>
+            </button>
             {/* Takeaway badge */}
             {takeawayCart.length > 0 && (
               <div className="flex items-center gap-1.5 bg-secondary/20 text-secondary px-3 py-1.5 rounded-full">
