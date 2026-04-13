@@ -9,8 +9,10 @@ import RoleSelect from "@/components/chaska/role-select";
 import TableDashboard from "@/components/chaska/table-dashboard";
 import OrderScreen from "@/components/chaska/order-screen";
 import BillingScreen from "@/components/chaska/billing-screen";
+import BillHistoryView from "@/components/chaska/BillHistoryView";
 import BottomNav, { AppView } from "@/components/chaska/bottom-nav";
 import { seedTablesIfEmpty } from "@/services/tables";
+import { useKotAutoPrint } from "@/hooks/useKotAutoPrint";
 
 const ROLE_KEY = "chaska_role";
 const ROLE_TS_KEY = "chaska_role_ts";
@@ -24,6 +26,9 @@ export default function Page() {
 
   const { tables, loading: tablesLoading } = useTables();
   const { orders, loading: ordersLoading } = useOrders();
+
+  // ── Auto-KOT Background Printer ─────────────────────────────────────────────
+  useKotAutoPrint(role, orders, tables);
 
   // ── On mount: restore role from localStorage (with expiry check) ────────────
   useEffect(() => {
@@ -118,7 +123,12 @@ export default function Page() {
           orders={orders}
           loading={tablesLoading || ordersLoading}
           onBack={() => setActiveView("tables")}
+          onViewHistory={() => setActiveView("history")}
         />
+      )}
+
+      {activeView === "history" && (
+        <BillHistoryView onBack={() => setActiveView("billing")} />
       )}
 
       <BottomNav

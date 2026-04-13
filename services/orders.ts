@@ -12,6 +12,7 @@ import {
   serverTimestamp,
   Timestamp,
   Unsubscribe,
+  runTransaction,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import {
@@ -57,6 +58,51 @@ export function subscribeToActiveOrders(
       toOrder(d.id, d.data() as Record<string, unknown>)
     );
     callback(orders);
+  });
+}
+
+/**
+ * Returns the start of the current "business day" — 12:00 PM today.
+ * If it is currently before noon, the business day started at 12:00 PM yesterday.
+ * This accounts for late-night service running past midnight.
+ */
+export function getBusinessDayStart(): Date {
+  const now = new Date();
+  const cutoff = new Date(now);
+  cutoff.setHours(12, 0, 0, 0); // noon today
+  if (now < cutoff) {
+    // Before noon today → business day started at noon yesterday
+    cutoff.setDate(cutoff.getDate() - 1);
+  }
+  return cutoff;
+}
+
+/**
+ * Subscribes to today's billed orders (since last 12:00 PM cutoff).
+ * Streams the total revenue as a number.
+ * Only active on the billing screen.
+ */
+export function subscribeTodayRevenue(
+  callback: (totalRevenue: number) => void
+): Unsubscribe {
+  const cutoff = getBusinessDayStart();
+
+  const q = query(
+    collection(db, ORDERS_COLLECTION),
+    where("status", "==", "billed"),
+    where("updatedAt", ">=", Timestamp.fromDate(cutoff))
+  );
+
+  return onSnapshot(q, (snap) => {
+    let total = 0;
+    snap.docs.forEach((d) => {
+      const data = d.data() as Record<string, unknown>;
+      const items = (data.items as OrderItem[]) ?? [];
+      items.forEach((item) => {
+        total += (item.price ?? 0) * (item.quantity ?? 0);
+      });
+    });
+    callback(total);
   });
 }
 
@@ -127,13 +173,17 @@ export async function createTakeawayOrder(
 
 /**
  * Merge new/updated items into an existing order.
+ * Pass resetKotPrinted=true when a waiter adds new items so the billing
+ * device's auto-print hook detects the change and prints a fresh KOT.
  */
 export async function updateOrderItems(
   orderId: string,
-  newItems: OrderItem[]
+  newItems: OrderItem[],
+  resetKotPrinted = false
 ): Promise<void> {
   await updateDoc(doc(db, ORDERS_COLLECTION, orderId), {
     items: newItems,
+    ...(resetKotPrinted ? { kotPrinted: false } : {}),
     updatedAt: serverTimestamp(),
   });
 }
@@ -164,6 +214,54 @@ export async function markOrdersKotPrinted(orderIds: string[]): Promise<void> {
     });
   });
   await batch.commit();
+}
+
+/**
+ * Safely claims a KOT print job to prevent multiple billing devices from printing simultaneously.
+ * Uses a strict Firestore transaction. A lock is valid for 20 seconds.
+ * Returns true if claimed successfully, false if already printed or currently locked by another device.
+ */
+export async function claimKotPrintJob(orderIds: string[]): Promise<boolean> {
+  if (!orderIds.length) return false;
+
+  try {
+    await runTransaction(db, async (transaction) => {
+      // 1. Read all documents first
+      const docsToUpdate = [];
+      for (const id of orderIds) {
+        const ref = doc(db, ORDERS_COLLECTION, id);
+        const orderDoc = await transaction.get(ref);
+        if (!orderDoc.exists()) throw new Error("Order not found");
+
+        const data = orderDoc.data();
+        
+        // If it's already fully printed, abort.
+        if (data.kotPrinted === true) throw new Error("Already printed");
+
+        // If it was locked less than 20 seconds ago, another device is handling it.
+        if (data.kotPrintLockedAt) {
+          const lockedAt = (data.kotPrintLockedAt as Timestamp).toMillis();
+          if (Date.now() - lockedAt < 20000) {
+            throw new Error("Currently locked by another device");
+          }
+        }
+
+        docsToUpdate.push(ref);
+      }
+
+      // 2. Perform updates (claiming)
+      for (const ref of docsToUpdate) {
+        transaction.update(ref, {
+          kotPrintLockedAt: serverTimestamp()
+        });
+      }
+    });
+
+    return true; // Successfully claimed
+  } catch (err) {
+    // Transaction aborted due to throwing an error (e.g. locked, printed, not found)
+    return false;
+  }
 }
 
 /**
@@ -244,3 +342,83 @@ export async function clearTable(
 // Receipt generation has moved to lib/receipt.ts
 // Use: import { generateReceipt, formatReceiptForPrint } from "@/lib/receipt"
 // or:  import { generateReceipt } from "@/services/orders"  (re-exported above)
+
+export interface BillHistoryEntry {
+  /** Unique key for this bill group (tableId + billing session approx. timestamp) */
+  key: string;
+  tableId: string;
+  tableNumber: number | null; // null for takeaway-only
+  billedAt: Date;
+  orders: FirestoreOrder[];
+  total: number;
+  itemCount: number;
+  isTableBill: boolean;
+}
+
+/**
+ * Subscribes to all billed orders from the last 30 days.
+ * Groups them into BillHistoryEntry objects (one per clear-table event).
+ * Calls callback with the list sorted newest-first.
+ *
+ * NOTE: requires the composite Firestore index (status ASC, updatedAt ASC)
+ * that already exists for subscribeTodayRevenue.
+ */
+export function subscribeBillHistory(
+  callback: (entries: BillHistoryEntry[]) => void
+): Unsubscribe {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 30);
+
+  const q = query(
+    collection(db, ORDERS_COLLECTION),
+    where("status", "==", "billed"),
+    where("updatedAt", ">=", Timestamp.fromDate(cutoff))
+  );
+
+  return onSnapshot(q, (snap) => {
+    const allOrders: FirestoreOrder[] = snap.docs.map((d) =>
+      toOrder(d.id, d.data() as Record<string, unknown>)
+    );
+
+    // Group by tableId + approximate billing session window (30-minute bucket)
+    // Two orders belong to the same bill if they share tableId and their
+    // updatedAt timestamps are within 30 minutes of each other.
+    const groups = new Map<string, FirestoreOrder[]>();
+
+    allOrders.forEach((order) => {
+      // Bucket timestamp to nearest 30-minute window
+      const ts = order.updatedAt.getTime();
+      const bucket = Math.floor(ts / (30 * 60 * 1000));
+      const key = `${order.tableId}::${bucket}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(order);
+    });
+
+    const entries: BillHistoryEntry[] = Array.from(groups.entries()).map(
+      ([key, orders]) => {
+        const billedAt = new Date(
+          Math.max(...orders.map((o) => o.updatedAt.getTime()))
+        );
+        const total = orders.reduce(
+          (sum, o) =>
+            sum + o.items.reduce((s, i) => s + i.price * i.quantity, 0),
+          0
+        );
+        const itemCount = orders.reduce(
+          (sum, o) => sum + o.items.reduce((s, i) => s + i.quantity, 0),
+          0
+        );
+        // Try to derive table number from tableId (e.g. "table_5" → 5)
+        const tableId = orders[0].tableId;
+        const match = tableId.match(/(\d+)$/);
+        const tableNumber = match ? parseInt(match[1], 10) : null;
+        const isTableBill = !orders.every((o) => o.orderType === "takeaway");
+        return { key, tableId, tableNumber, billedAt, orders, total, itemCount, isTableBill };
+      }
+    );
+
+    // Sort newest first
+    entries.sort((a, b) => b.billedAt.getTime() - a.billedAt.getTime());
+    callback(entries);
+  });
+}

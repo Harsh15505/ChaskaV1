@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { FirestoreOrder, FirestoreTable, MenuCategory, MENU_ITEMS, MenuItem } from "@/lib/chaska-data";
-import { clearTable, updateOrderItems, createTakeawayOrder, markOrdersKotPrinted } from "@/services/orders";
+import { clearTable, updateOrderItems, createTakeawayOrder, markOrdersKotPrinted, subscribeTodayRevenue } from "@/services/orders";
 import { getNextBillNumber, getNextKotNumber } from "@/services/billing-counter";
 import { generateReceipt, generateKotData } from "@/lib/receipt";
 import type { ReceiptData } from "@/lib/receipt";
@@ -28,6 +28,7 @@ interface BillingScreenProps {
   orders: FirestoreOrder[];
   loading: boolean;
   onBack: () => void;
+  onViewHistory: () => void;
 }
 
 interface TakeawayItem {
@@ -67,6 +68,7 @@ export default function BillingScreen({
   orders,
   loading,
   onBack,
+  onViewHistory,
 }: BillingScreenProps) {
   const [selectedTableId, setSelectedTableId] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<ReceiptData | null>(null);
@@ -74,6 +76,13 @@ export default function BillingScreen({
   const [sendingToKitchen, setSendingToKitchen] = useState(false);
   // Bill number is assigned once per table session — reused if Generate Bill is tapped again
   const [billNumberForTable, setBillNumberForTable] = useState<string | null>(null);
+  // Today's revenue (resets at 12 PM each day)
+  const [todayRevenue, setTodayRevenue] = useState<number>(0);
+
+  useEffect(() => {
+    const unsub = subscribeTodayRevenue(setTodayRevenue);
+    return unsub;
+  }, []);
 
   // ── Takeaway state ───────────────────────────────────────────────────────
   const [takeawayOpen, setTakeawayOpen] = useState(false);
@@ -373,6 +382,15 @@ export default function BillingScreen({
                 Billing
               </h1>
             </div>
+            {/* Today's Revenue — tapping opens Bill History */}
+            <button
+              onClick={onViewHistory}
+              className="flex flex-col items-end active:scale-90 transition-transform"
+              aria-label="View bill history"
+            >
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider leading-none mb-0.5">Today</p>
+              <p className="text-base font-extrabold text-primary leading-none">₹{todayRevenue.toLocaleString("en-IN")}</p>
+            </button>
             {/* Takeaway badge */}
             {takeawayCart.length > 0 && (
               <div className="flex items-center gap-1.5 bg-secondary/20 text-secondary px-3 py-1.5 rounded-full">
@@ -769,12 +787,6 @@ export default function BillingScreen({
 
               {/* Action buttons — stacked vertically for full mobile tap area */}
               <div className="flex flex-col gap-2">
-                <button
-                  onClick={handlePrintKot}
-                  className="w-full py-4 bg-orange-500 text-white rounded-2xl font-extrabold text-base active:scale-95 transition-transform shadow-lg flex items-center justify-center gap-2"
-                >
-                  <Printer className="w-5 h-5" /> Print KOT
-                </button>
                 <button
                   onClick={handleGenerateBill}
                   className="w-full py-4 bg-primary text-primary-foreground rounded-2xl font-extrabold text-base active:scale-95 transition-transform shadow-lg"

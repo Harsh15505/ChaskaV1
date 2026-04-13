@@ -185,7 +185,7 @@ export default function OrderScreen({
       .filter((i) => i.quantity > 0);
 
     try {
-      await updateOrderItems(orderToUpdate.id, updated);
+      await updateOrderItems(orderToUpdate.id, updated, true);
       // Auto-close modal if last item deleted
       if (updated.length === 0 && mergedSentItems.length === 1) {
         setEditSentModalOpen(false);
