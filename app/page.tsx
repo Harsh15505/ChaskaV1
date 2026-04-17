@@ -11,7 +11,7 @@ import OrderScreen from "@/components/chaska/order-screen";
 import BillingScreen from "@/components/chaska/billing-screen";
 import BillHistoryView from "@/components/chaska/BillHistoryView";
 import BottomNav, { AppView } from "@/components/chaska/bottom-nav";
-import { seedTablesIfEmpty } from "@/services/tables";
+import { ensureTablesExist } from "@/services/tables";
 import { useKotAutoPrint } from "@/hooks/useKotAutoPrint";
 
 const ROLE_KEY = "chaska_role";
@@ -46,12 +46,14 @@ export default function Page() {
     setRoleLoaded(true);
   }, []);
 
-  // ── On first load with tables present: seed if empty ───────────────────────
+  // ── On first load: ensure all 12 tables exist (never overwrites existing docs) ───
+  // IMPORTANT: We use ensureTablesExist (not seedTablesIfEmpty) because it only
+  // creates MISSING tables. seedTablesIfEmpty uses setDoc which overwrites existing
+  // documents if it ever sees an empty list — causing catastrophic data loss on
+  // WebView restarts when Firestore cache hasn't warmed up yet.
   useEffect(() => {
-    if (!tablesLoading && tables.length === 0) {
-      seedTablesIfEmpty(8).catch(console.error);
-    }
-  }, [tablesLoading, tables.length]);
+    ensureTablesExist().catch(console.error);
+  }, []); // Run once on mount only — stable, no dependency on tables.length
 
   // ── Native Android Back Button Handler ──────────────────────────────────────
   useEffect(() => {
@@ -98,7 +100,7 @@ export default function Page() {
     return (
       <OrderScreen
         tableId={selectedTableId}
-        tableNumber={table?.tableNumber ?? 0}
+        tableNumber={table?.tableNumber ?? ""}
         tableStatus={table?.status ?? "free"}
         existingOrderId={table?.currentOrderId ?? null}
         orders={orders}

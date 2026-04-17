@@ -53,8 +53,9 @@ export interface CartItem {
 // ─── Firestore document shapes ───────────────────────────────────────────────
 
 export interface FirestoreTable {
-  id: string;               // Firestore doc id, e.g. "table_1"
-  tableNumber: number;
+  id: string;               // Firestore doc id, e.g. "table_h1" or "table_1"
+  tableNumber: string;      // Human-readable: "H1"–"H6" (hall) or "1"–"6" (regular)
+  sortOrder: number;        // Numeric sort key: H1=1…H6=6, Table1=7…Table6=12
   status: TableStatus;
   currentOrderId: string | null;
 }

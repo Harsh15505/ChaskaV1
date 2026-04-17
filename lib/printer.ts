@@ -27,7 +27,7 @@ interface NativePrinterPlugin {
 
 /** Shape of data sent to the Android plugin */
 export interface PrintReceiptPayload {
-  tableNumber: number;
+  tableNumber: string;
   time: string;
   items: Array<{ name: string; quantity: number; total: number; note?: string }>;
   totalAmount: number;

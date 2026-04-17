@@ -18,7 +18,7 @@ import { toast } from "sonner";
 
 interface OrderScreenProps {
   tableId: string;
-  tableNumber: number;
+  tableNumber: string;
   tableStatus: TableStatus;
   existingOrderId: string | null;
   orders: FirestoreOrder[];

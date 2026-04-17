@@ -105,7 +105,7 @@ public class PrinterPlugin extends Plugin {
      *   await Printer.printReceipt({
      *     address: "XX:XX:XX:XX:XX:XX",
      *     data: {
-     *       tableNumber: 3,
+     *       tableNumber: "H3",
      *       time: "10:42 PM",
      *       items: [{ name, quantity, total }],
      *       totalAmount: 450,
@@ -172,7 +172,7 @@ public class PrinterPlugin extends Plugin {
     private String buildReceiptText(JSObject data) throws Exception {
         StringBuilder sb = new StringBuilder();
 
-        int tableNumber = data.getInteger("tableNumber", 0);
+        String tableNumber = data.getString("tableNumber", "?");
         String time = data.getString("time", "");
         int totalAmount = data.getInteger("totalAmount", 0);
         int discount = data.getInteger("discount", 0);

@@ -22,7 +22,7 @@ export interface ReceiptItem {
 
 export interface ReceiptData {
   tableId: string;
-  tableNumber: number;
+  tableNumber: string;
   items: ReceiptItem[];
   totalAmount: number;
   /** Formatted time string, e.g. "10:42 PM" */
@@ -62,7 +62,7 @@ export function buildUpiString(amount: number): string {
  */
 export function generateReceipt(
   orders: FirestoreOrder[],
-  tableNumber: number,
+  tableNumber: string,
   extraItems: Array<{ id: string; name: string; price: number; quantity: number }> = [],
   billNumber: string = "000"
 ): ReceiptData {
@@ -180,7 +180,7 @@ export function formatReceiptForPrint(receipt: ReceiptData): string {
 /**
  * Generates data for a Kitchen Order Ticket containing only unprinted items.
  */
-export function generateKotData(orders: FirestoreOrder[], tableNumber: number, kotNumber: string): ReceiptData | null {
+export function generateKotData(orders: FirestoreOrder[], tableNumber: string, kotNumber: string): ReceiptData | null {
   const itemMap = new Map<string, ReceiptItem>();
 
   // Only consider orders that haven't been printed yet

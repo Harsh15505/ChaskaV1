@@ -347,7 +347,7 @@ export interface BillHistoryEntry {
   /** Unique key for this bill group (tableId + billing session approx. timestamp) */
   key: string;
   tableId: string;
-  tableNumber: number | null; // null for takeaway-only
+  tableNumber: string | null; // null for takeaway-only
   billedAt: Date;
   orders: FirestoreOrder[];
   total: number;
@@ -408,10 +408,10 @@ export function subscribeBillHistory(
           (sum, o) => sum + o.items.reduce((s, i) => s + i.quantity, 0),
           0
         );
-        // Try to derive table number from tableId (e.g. "table_5" → 5)
+        // Try to derive table number from tableId (e.g. "table_h1" → "H1", "table_1" → "1")
         const tableId = orders[0].tableId;
-        const match = tableId.match(/(\d+)$/);
-        const tableNumber = match ? parseInt(match[1], 10) : null;
+        const match = tableId.match(/^table_(.+)$/i);
+        const tableNumber = match ? match[1].toUpperCase() : null;
         const isTableBill = !orders.every((o) => o.orderType === "takeaway");
         return { key, tableId, tableNumber, billedAt, orders, total, itemCount, isTableBill };
       }
