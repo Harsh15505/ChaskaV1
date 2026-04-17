@@ -185,7 +185,11 @@ export default function OrderScreen({
       .filter((i) => i.quantity > 0);
 
     try {
-      await updateOrderItems(orderToUpdate.id, updated, true);
+      // Only trigger a fresh KOT if waiter is ADDING quantity.
+      // Reductions don't need a re-print — the kitchen already has the original KOT.
+      // Passing resetKotPrinted=true for a removal would re-print all items (including
+      // ones already being cooked), confusing the kitchen.
+      await updateOrderItems(orderToUpdate.id, updated, delta > 0);
       // Auto-close modal if last item deleted
       if (updated.length === 0 && mergedSentItems.length === 1) {
         setEditSentModalOpen(false);

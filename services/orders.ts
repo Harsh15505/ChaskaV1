@@ -53,12 +53,16 @@ export function subscribeToActiveOrders(
     collection(db, ORDERS_COLLECTION),
     where("status", "!=", "billed")
   );
-  return onSnapshot(q, (snap) => {
-    const orders = snap.docs.map((d) =>
-      toOrder(d.id, d.data() as Record<string, unknown>)
-    );
-    callback(orders);
-  });
+  return onSnapshot(
+    q,
+    (snap) => {
+      const orders = snap.docs.map((d) =>
+        toOrder(d.id, d.data() as Record<string, unknown>)
+      );
+      callback(orders);
+    },
+    (err) => console.error("[subscribeToActiveOrders] Firestore error:", err)
+  );
 }
 
 /**
@@ -165,6 +169,7 @@ export async function createTakeawayOrder(
     orderType: "takeaway",
     items,
     status: "pending",
+    kotPrinted: false,   // ← required so auto-KOT hook detects it
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });

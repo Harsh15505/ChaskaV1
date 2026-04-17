@@ -60,14 +60,18 @@ export function subscribeToTables(
   callback: (tables: FirestoreTable[]) => void
 ): Unsubscribe {
   const q = query(collection(db, TABLES_COLLECTION));
-  return onSnapshot(q, (snap) => {
-    const tables = snap.docs.map((d) =>
-      toTable(d.id, d.data() as Record<string, unknown>)
-    );
-    // Sort client-side so we never accidentally filter out documents missing the sortOrder field
-    tables.sort((a, b) => a.sortOrder - b.sortOrder);
-    callback(tables);
-  });
+  return onSnapshot(
+    q,
+    (snap) => {
+      const tables = snap.docs.map((d) =>
+        toTable(d.id, d.data() as Record<string, unknown>)
+      );
+      // Sort client-side so documents missing sortOrder still appear
+      tables.sort((a, b) => a.sortOrder - b.sortOrder);
+      callback(tables);
+    },
+    (err) => console.error("[subscribeToTables] Firestore error:", err)
+  );
 }
 
 /** Update a table's status */

@@ -15,7 +15,7 @@ interface PendingServicesProps {
 interface PendingItem {
   orderId: string;
   tableId: string;
-  tableNumber: number;
+  tableNumber: string;
   item: OrderItem;
   pendingQty: number;
   createdAt: Date;
