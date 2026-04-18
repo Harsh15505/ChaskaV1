@@ -54,55 +54,49 @@ export function useKotAutoPrint(
         return;
       }
 
-      // Group by table — one KOT per table per tick
-      const tableOrderGroups = new Map<string, FirestoreOrder[]>();
-      
-      for (const order of unprintedOrders) {
-        if (!inFlightRef.current.has(order.id)) {
-          const group = tableOrderGroups.get(order.tableId) || [];
-          group.push(order);
-          tableOrderGroups.set(order.tableId, group);
-        }
-      }
-
-      if (tableOrderGroups.size === 0) return;
+      const ordersToProcess = unprintedOrders.filter(o => !inFlightRef.current.has(o.id));
+      if (ordersToProcess.length === 0) return;
 
       isPrintingRef.current = true;
 
-      for (const [tableId, tableOrders] of Array.from(tableOrderGroups.entries())) {
-        const orderIds = tableOrders.map(o => o.id);
-        orderIds.forEach(id => inFlightRef.current.add(id));
+      for (const order of ordersToProcess) {
+        const orderIds = [order.id];
+        inFlightRef.current.add(order.id);
 
         try {
           // ── Distributed Lock Claim ──
           const claimed = await claimKotPrintJob(orderIds);
           if (!claimed) {
-            orderIds.forEach(id => inFlightRef.current.delete(id));
+            inFlightRef.current.delete(order.id);
             continue;
           }
 
-          const table = tables.find(t => t.id === tableId);
+          const table = tables.find(t => t.id === order.tableId);
           if (!table) throw new Error("Table not found for order");
 
           const kotNum = await getNextKotNumber();
-          const kotData = generateKotData(tableOrders, table.tableNumber, kotNum);
+          const kotData = generateKotData([order], table.tableNumber, kotNum);
           
           if (kotData) {
             // Print copy 1
             await printReceipt(kotData, savedPrinter.address);
             
-            // Wait 5 seconds for paper tear
+            // Wait 5 seconds for paper tear between Copy 1 & 2
             await new Promise((res) => setTimeout(res, 5000));
             
             // Print copy 2
             await printReceipt(kotData, savedPrinter.address);
+            
+            // ⚠️ NEW: Wait 5 seconds for paper tear BEFORE starting the next completely separate order.
+            // This prevents overlapping ticket printing ("Order A Copy 2 runs right into Order B Copy 1")
+            await new Promise((res) => setTimeout(res, 5000));
           }
 
           await markOrdersKotPrinted(orderIds);
 
         } catch (err) {
           console.error("Auto KOT print failed. Will retry.", err);
-          orderIds.forEach(id => inFlightRef.current.delete(id));
+          inFlightRef.current.delete(order.id);
         }
       }
 

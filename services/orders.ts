@@ -59,6 +59,9 @@ export function subscribeToActiveOrders(
       const orders = snap.docs.map((d) =>
         toOrder(d.id, d.data() as Record<string, unknown>)
       );
+      // CRITICAL FCFS FIX: Sort chronologically. Firestore inherently returns them in
+      // string ID order if we don't query order by, which scrambles KOT sequencing.
+      orders.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
       callback(orders);
     },
     (err) => console.error("[subscribeToActiveOrders] Firestore error:", err)
