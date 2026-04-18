@@ -82,7 +82,10 @@ export default function ReceiptPreview({
         await new Promise((resolve) => setTimeout(resolve, 5000));
         await printReceipt(printData, printerAddress);
         toast.success("KOT printed! (2 copies)");
-        if (onKotPrinted) onKotPrinted();
+        // ⚠️  Must await — onKotPrinted calls markOrdersKotPrinted (Firestore write).
+        // If not awaited and the write fails, the order stays kotPrinted:false
+        // and the auto-print hook will immediately re-print it.
+        if (onKotPrinted) await onKotPrinted();
       } else {
         toast.success("Receipt printed!");
       }

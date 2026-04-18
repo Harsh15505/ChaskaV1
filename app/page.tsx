@@ -13,6 +13,7 @@ import BillHistoryView from "@/components/chaska/BillHistoryView";
 import BottomNav, { AppView } from "@/components/chaska/bottom-nav";
 import { ensureTablesExist } from "@/services/tables";
 import { useKotAutoPrint } from "@/hooks/useKotAutoPrint";
+import { startKeepalive, stopKeepalive } from "@/lib/printer";
 
 const ROLE_KEY = "chaska_role";
 const ROLE_TS_KEY = "chaska_role_ts";
@@ -54,6 +55,19 @@ export default function Page() {
   useEffect(() => {
     ensureTablesExist().catch(console.error);
   }, []); // Run once on mount only — stable, no dependency on tables.length
+
+  // ── Background Keepalive Service ────────────────────────────────────────
+  // Starts the Android Foreground Service when billing role is active.
+  // This keeps the CPU awake (WakeLock) and fires native timer ticks
+  // so KOT printing continues even when the tablet screen is off.
+  useEffect(() => {
+    if (role === "billing") {
+      startKeepalive().catch(console.error);
+    } else {
+      stopKeepalive().catch(console.error);
+    }
+    return () => { stopKeepalive().catch(console.error); };
+  }, [role]);
 
   // ── Native Android Back Button Handler ──────────────────────────────────────
   useEffect(() => {

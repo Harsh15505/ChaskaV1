@@ -76,6 +76,8 @@ export default function BillingScreen({
   const [sendingToKitchen, setSendingToKitchen] = useState(false);
   // Bill number is assigned once per table session — reused if Generate Bill is tapped again
   const [billNumberForTable, setBillNumberForTable] = useState<string | null>(null);
+  // Guard against double-tap on "Print KOT" consuming two KOT counter values
+  const [kotPrinting, setKotPrinting] = useState(false);
   // Today's revenue (resets at 12 PM each day)
   const [todayRevenue, setTodayRevenue] = useState<number>(0);
 
@@ -248,7 +250,7 @@ export default function BillingScreen({
   // ── Print KOT ────────────────────────────────────────────────────────────
 
   const handlePrintKot = async () => {
-    if (!selectedTable) return;
+    if (!selectedTable || kotPrinting) return;
     
     // Quick check if there are unprinted items to avoid wasting a KOT number
     const hasUnprinted = selectedOrders.some((o) => !o.kotPrinted);
@@ -257,13 +259,18 @@ export default function BillingScreen({
       return;
     }
 
-    const kotNum = await getNextKotNumber();
-    const kotData = generateKotData(selectedOrders, selectedTable.tableNumber, kotNum);
-    if (!kotData) {
-      toast.info("No unprinted items to send to kitchen.");
-      return;
+    setKotPrinting(true);
+    try {
+      const kotNum = await getNextKotNumber();
+      const kotData = generateKotData(selectedOrders, selectedTable.tableNumber, kotNum);
+      if (!kotData) {
+        toast.info("No unprinted items to send to kitchen.");
+        return;
+      }
+      setReceipt(kotData);
+    } finally {
+      setKotPrinting(false);
     }
-    setReceipt(kotData);
   };
 
   // ── Clear table ──────────────────────────────────────────────────────────

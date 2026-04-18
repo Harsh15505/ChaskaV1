@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { FirestoreOrder, FirestoreTable } from "@/lib/chaska-data";
-import { printReceipt } from "@/lib/printer";
+import { printReceipt, isAndroid, KeepaliveBridge } from "@/lib/printer";
 import { generateKotData } from "@/lib/receipt";
 import { markOrdersKotPrinted, claimKotPrintJob } from "@/services/orders";
 import { getNextKotNumber } from "@/services/billing-counter";
@@ -40,21 +40,21 @@ export function useKotAutoPrint(
 
     if (unprintedOrders.length === 0) return;
 
-    const intervalId = setInterval(async () => {
+    // ── Core print tick logic ────────────────────────────────────────────────
+    // Extracted into a named function so it can be called from BOTH:
+    //   1. JS setInterval (when screen is ON — every 2s)
+    //   2. Native kotTick listener (when screen is OFF — every 3s from Java Timer)
+    const runTick = async () => {
       // Abort if the previous print loop is still sleeping during the 5-second cut delay
       if (isPrintingRef.current) return;
 
-      // Re-evaluate unprinted orders using the latest closure scope
-      // Actually, since interval captures closure, we should just process the ones
-      // we had at the time the effect fired. 
-      // Because this effect re-runs when `orders` changes anyway.
       const savedPrinter = getSavedPrinter();
       if (!savedPrinter) {
         // Can't print without a printer configured on the billing tablet yet.
         return;
       }
 
-      // We'll process one table's unprinted orders at a time to generate a single KOT for them
+      // Group by table — one KOT per table per tick
       const tableOrderGroups = new Map<string, FirestoreOrder[]>();
       
       for (const order of unprintedOrders) {
@@ -65,14 +65,11 @@ export function useKotAutoPrint(
         }
       }
 
-      // If nothing new to print, just return
       if (tableOrderGroups.size === 0) return;
 
-      // Lock global printing process so overlaps wait
       isPrintingRef.current = true;
 
       for (const [tableId, tableOrders] of Array.from(tableOrderGroups.entries())) {
-        // Mark these orders as in-flight
         const orderIds = tableOrders.map(o => o.id);
         orderIds.forEach(id => inFlightRef.current.add(id));
 
@@ -80,9 +77,8 @@ export function useKotAutoPrint(
           // ── Distributed Lock Claim ──
           const claimed = await claimKotPrintJob(orderIds);
           if (!claimed) {
-            // Another billing device claimed this print job (or it's already done). 
-             orderIds.forEach(id => inFlightRef.current.delete(id));
-             continue;
+            orderIds.forEach(id => inFlightRef.current.delete(id));
+            continue;
           }
 
           const table = tables.find(t => t.id === tableId);
@@ -95,31 +91,51 @@ export function useKotAutoPrint(
             // Print copy 1
             await printReceipt(kotData, savedPrinter.address);
             
-            // Wait 5 seconds to tear
+            // Wait 5 seconds for paper tear
             await new Promise((res) => setTimeout(res, 5000));
             
             // Print copy 2
             await printReceipt(kotData, savedPrinter.address);
           }
 
-          // Mark as printed in Firestore so they stop showing up as kotPrinted === false
           await markOrdersKotPrinted(orderIds);
-          
-          // DO NOT remove from inFlightRef here! 
-          // Re-rendering with new orders array will naturally clear them from `unprintedOrders`.
-          // If we remove them before the snapshot updates, they might double-print.
 
         } catch (err) {
           console.error("Auto KOT print failed. Will retry.", err);
-          // Print failed. Remove from in-flight so it can be retried on the next tick layer.
           orderIds.forEach(id => inFlightRef.current.delete(id));
         }
       }
 
-      // Unlock global printing after all tables finish
       isPrintingRef.current = false;
-    }, 2000); // Poll every 2 seconds
+    };
 
-    return () => clearInterval(intervalId);
+    // ── Trigger 1: JS interval (screen ON) ──────────────────────────────────
+    // polls every 2 seconds when the WebView is active
+    const intervalId = setInterval(runTick, 2000);
+
+    // ── Trigger 2: Native kotTick (screen OFF) ───────────────────────────────
+    // KotKeepaliveService.java fires a broadcast every 3s.
+    // KotKeepalivePlugin.java relays it here as "kotTick".
+    // This bypasses WebView JS timer suspension — works with screen off.
+    //
+    // ⚠️  Race guard: if cleanup runs before the addListener Promise resolves,
+    // the handle arrives after unmount. We must remove it immediately in that case.
+    let cancelled = false;
+    let nativeListener: { remove: () => void } | null = null;
+    if (isAndroid()) {
+      KeepaliveBridge.addListener("kotTick", runTick).then((handle) => {
+        if (cancelled) {
+          handle.remove(); // effect already cleaned up — remove immediately
+        } else {
+          nativeListener = handle;
+        }
+      });
+    }
+
+    return () => {
+      cancelled = true;
+      clearInterval(intervalId);
+      nativeListener?.remove();
+    };
   }, [role, orders, tables]);
 }

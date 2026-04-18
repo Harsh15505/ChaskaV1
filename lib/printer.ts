@@ -44,6 +44,45 @@ export interface PrintReceiptPayload {
 // the @CapacitorPlugin(name = "Printer") annotation in PrinterPlugin.java
 const NativePrinter = registerPlugin<NativePrinterPlugin>("Printer");
 
+// ── KeepaliveBridge ───────────────────────────────────────────────────────────
+
+/**
+ * Bridge to KotKeepalivePlugin.java.
+ * Provides start/stop of the Android Foreground Service and a "kotTick"
+ * listener that fires every 3 seconds from the native Java Timer —
+ * even when the screen is off and WebView setInterval is suspended.
+ */
+export const KeepaliveBridge = registerPlugin<{
+  startKeepalive: () => Promise<void>;
+  stopKeepalive:  () => Promise<void>;
+  addListener: (
+    event: "kotTick",
+    handler: () => void
+  ) => Promise<{ remove: () => void }>;
+}>("KotKeepalive");
+
+/**
+ * Start the foreground keepalive service.
+ * Call this when the user enters the "billing" role.
+ * No-op on non-Android platforms.
+ */
+export async function startKeepalive(): Promise<void> {
+  if (isAndroid()) {
+    await KeepaliveBridge.startKeepalive();
+  }
+}
+
+/**
+ * Stop the foreground keepalive service.
+ * Call this when the user leaves the "billing" role or unmounts.
+ * No-op on non-Android platforms.
+ */
+export async function stopKeepalive(): Promise<void> {
+  if (isAndroid()) {
+    await KeepaliveBridge.stopKeepalive();
+  }
+}
+
 // ── isAndroid ─────────────────────────────────────────────────────────────────
 
 /** True when running inside the Capacitor Android APK */
