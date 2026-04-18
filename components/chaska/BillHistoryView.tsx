@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { subscribeBillHistory, BillHistoryEntry } from "@/services/orders";
-import { ArrowLeft, Search, X, ChevronDown, ChevronUp, ShoppingBag, Table2, Clock, IndianRupee } from "lucide-react";
+import { ArrowLeft, Search, X, ChevronDown, ChevronUp, ShoppingBag, Table2, Clock, IndianRupee, Printer } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { generateReceipt, ReceiptData } from "@/lib/receipt";
+import ReceiptPreview from "@/components/chaska/ReceiptPreview";
 
 interface BillHistoryViewProps {
   onBack: () => void;
@@ -36,7 +38,7 @@ function groupByDay(entries: BillHistoryEntry[]): { label: string; entries: Bill
   return Array.from(map.entries()).map(([label, entries]) => ({ label, entries }));
 }
 
-function BillCard({ entry }: { entry: BillHistoryEntry }) {
+function BillCard({ entry, onReprint }: { entry: BillHistoryEntry; onReprint: () => void }) {
   const [expanded, setExpanded] = useState(false);
 
   // Merge all items across rounds for this bill
@@ -126,6 +128,17 @@ function BillCard({ entry }: { entry: BillHistoryEntry }) {
             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Total</span>
             <span className="font-extrabold text-primary">₹{entry.total.toLocaleString("en-IN")}</span>
           </div>
+          
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onReprint();
+            }}
+            className="mt-3 w-full py-2.5 bg-primary/10 text-primary font-bold rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform"
+          >
+            <Printer className="w-4 h-4" />
+            Reprint Bill
+          </button>
         </div>
       )}
     </div>
@@ -136,6 +149,7 @@ export default function BillHistoryView({ onBack }: BillHistoryViewProps) {
   const [entries, setEntries] = useState<BillHistoryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [reprintReceipt, setReprintReceipt] = useState<ReceiptData | null>(null);
 
   useEffect(() => {
     const unsub = subscribeBillHistory((data) => {
@@ -144,6 +158,22 @@ export default function BillHistoryView({ onBack }: BillHistoryViewProps) {
     });
     return unsub;
   }, []);
+
+  const handleReprint = (entry: BillHistoryEntry) => {
+    const receipt = generateReceipt(
+      entry.orders,
+      entry.tableNumber ?? "Takeaway",
+      [],
+      "COPY"
+    );
+    // Explicitly use the time the bill was technically cleared, not the current time
+    receipt.time = entry.billedAt.toLocaleTimeString("en-IN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+    setReprintReceipt(receipt);
+  };
 
   // Filter by table number or search query
   const filtered = search.trim()
@@ -161,7 +191,17 @@ export default function BillHistoryView({ onBack }: BillHistoryViewProps) {
   const totalBills = filtered.length;
 
   return (
-    <div className="flex flex-col min-h-screen bg-background">
+    <>
+      {/* ── Reprint modal overlay ── */}
+      {reprintReceipt && (
+        <ReceiptPreview
+          receiptData={reprintReceipt}
+          onClose={() => setReprintReceipt(null)}
+          // onClear is omitted because this is a reprint — the table is already cleared
+        />
+      )}
+
+      <div className="flex flex-col min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-10 bg-card border-b border-border px-4 py-4 shadow-lg">
         <div className="flex items-center gap-3">
@@ -262,12 +302,17 @@ export default function BillHistoryView({ onBack }: BillHistoryViewProps) {
               </div>
               <div className="space-y-2.5">
                 {dayEntries.map((entry) => (
-                  <BillCard key={entry.key} entry={entry} />
+                  <BillCard
+                    key={entry.key}
+                    entry={entry}
+                    onReprint={() => handleReprint(entry)}
+                  />
                 ))}
               </div>
             </section>
           ))}
       </main>
     </div>
+    </>
   );
 }

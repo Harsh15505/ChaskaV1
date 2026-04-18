@@ -97,17 +97,21 @@ export function subscribeTodayRevenue(
     where("updatedAt", ">=", Timestamp.fromDate(cutoff))
   );
 
-  return onSnapshot(q, (snap) => {
-    let total = 0;
-    snap.docs.forEach((d) => {
-      const data = d.data() as Record<string, unknown>;
-      const items = (data.items as OrderItem[]) ?? [];
-      items.forEach((item) => {
-        total += (item.price ?? 0) * (item.quantity ?? 0);
+  return onSnapshot(
+    q,
+    (snap) => {
+      let total = 0;
+      snap.docs.forEach((d) => {
+        const data = d.data() as Record<string, unknown>;
+        const items = (data.items as OrderItem[]) ?? [];
+        items.forEach((item) => {
+          total += (item.price ?? 0) * (item.quantity ?? 0);
+        });
       });
-    });
-    callback(total);
-  });
+      callback(total);
+    },
+    (err) => console.error("[subscribeTodayRevenue] error:", err)
+  );
 }
 
 /**
@@ -123,13 +127,19 @@ export function subscribeToTableOrder(
     where("tableId", "==", tableId),
     where("status", "!=", "billed")
   );
-  return onSnapshot(q, (snap) => {
-    if (snap.empty) {
-      callback(null);
-    } else {
-      callback(toOrder(snap.docs[0].id, snap.docs[0].data() as Record<string, unknown>));
-    }
-  });
+  return onSnapshot(
+    q,
+    (snap) => {
+      if (snap.empty) {
+        callback(null);
+      } else {
+        callback(
+          toOrder(snap.docs[0].id, snap.docs[0].data() as Record<string, unknown>)
+        );
+      }
+    },
+    (err) => console.error("[subscribeToTableOrder] error:", err)
+  );
 }
 
 /**
@@ -425,5 +435,5 @@ export function subscribeBillHistory(
     // Sort newest first
     entries.sort((a, b) => b.billedAt.getTime() - a.billedAt.getTime());
     callback(entries);
-  });
+  }, (err) => console.error("[subscribeBillHistory] error:", err));
 }

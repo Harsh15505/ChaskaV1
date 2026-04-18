@@ -12,8 +12,8 @@ import { toast } from "sonner";
 interface ReceiptPreviewProps {
   receiptData: ReceiptData;
   onClose: () => void;
-  onClear: () => void;
-  clearing: boolean;
+  onClear?: () => void;
+  clearing?: boolean;
   onRequestBillNumber?: () => Promise<string>;
   onKotPrinted?: () => void;
 }
@@ -267,7 +267,7 @@ export default function ReceiptPreview({
               </button>
             )}
 
-            {!receiptData.isKot && (
+            {!receiptData.isKot && onClear && (
               <button
                 onClick={onClear}
                 disabled={clearing}

@@ -156,9 +156,7 @@ export default function OrderScreen({
   );
 
   const mergedSentItems = activeOrders.reduce((acc, order) => {
-    order.items
-      .filter((item) => !item.skipKitchen) // waiter-served items never go to kitchen
-      .forEach((item) => {
+    order.items.forEach((item) => {
         const existing = acc.find((i) => i.id === item.id);
         if (existing) {
           existing.quantity += item.quantity;
@@ -354,10 +352,10 @@ export default function OrderScreen({
             <div className="flex items-center justify-between shrink-0 border-b border-border pb-4">
               <div>
                 <h2 className="text-xl font-extrabold text-foreground">
-                  Sent to Kitchen
+                  Active Orders
                 </h2>
                 <p className="text-sm text-status-billing mt-0.5 font-bold">
-                  Editing these items adjusts the kitchen order directly
+                  Editing these items adjusts the main order directly
                 </p>
               </div>
               <button
