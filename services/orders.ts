@@ -151,13 +151,17 @@ export function subscribeToTableOrder(
  */
 export async function createOrder(
   tableId: string,
-  items: OrderItem[]
+  items: OrderItem[],
+  skipKot = false
 ): Promise<string> {
+  // skipKot: true  → repeat round (table already active) — kitchen already knows the table.
+  //                   Pre-mark as printed so auto-print hook never queues it.
+  // skipKot: false → first order for this table — let the KOT print normally.
   const ref = await addDoc(collection(db, ORDERS_COLLECTION), {
     tableId,
     items,
     status: "pending",
-    kotPrinted: false,
+    kotPrinted: skipKot,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });

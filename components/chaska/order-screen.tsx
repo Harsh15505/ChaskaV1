@@ -202,8 +202,14 @@ export default function OrderScreen({
     setSending(true);
     try {
       const items = cartToOrderItems(cart);
-      await createOrder(tableId, items);
-      toast.success("Order sent to kitchen!");
+      // tableHasActiveOrders === true means this table already has a round in progress.
+      // In that case we pass skipKot=true so no KOT is printed for this repeat round.
+      await createOrder(tableId, items, tableHasActiveOrders);
+      if (tableHasActiveOrders) {
+        toast.success("Repeat order sent! (No KOT — communicate with kitchen)");
+      } else {
+        toast.success("Order sent! KOT printing…");
+      }
       onBack();
     } catch (err) {
       console.error(err);
