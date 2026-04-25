@@ -36,6 +36,7 @@ interface TakeawayItem {
   name: string;
   price: number;
   quantity: number;
+  skipKitchen?: boolean;
 }
 
 const CATEGORY_TABS: { id: MenuCategory | "all"; label: string; icon: string }[] = [
@@ -137,11 +138,20 @@ export default function BillingScreen({
     setTakeawayCart((prev) => {
       const existing = prev.find((c) => c.id === item.id);
       if (existing) {
-        return prev.map((c) =>
-          c.id === item.id ? { ...c, quantity: c.quantity + 1 } : c
+        return prev.map((i) =>
+          i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i
         );
       }
-      return [...prev, { id: item.id, name: item.name, price: item.price!, quantity: 1 }];
+      return [
+        ...prev,
+        {
+          id: item.id,
+          name: item.name,
+          price: item.price!,
+          quantity: 1,
+          ...(item.skipKitchen ? { skipKitchen: true } : {}),
+        },
+      ];
     });
   };
 
@@ -152,11 +162,20 @@ export default function BillingScreen({
     setTakeawayCart((prev) => {
       const existing = prev.find((c) => c.id === variantId);
       if (existing) {
-        return prev.map((c) =>
-          c.id === variantId ? { ...c, quantity: c.quantity + 1 } : c
+        return prev.map((i) =>
+          i.id === variantId ? { ...i, quantity: i.quantity + 1 } : i
         );
       }
-      return [...prev, { id: variantId, name: variantName, price, quantity: 1 }];
+      return [
+        ...prev,
+        {
+          id: variantId,
+          name: variantName,
+          price,
+          quantity: 1,
+          ...(base.skipKitchen ? { skipKitchen: true } : {}),
+        },
+      ];
     });
     setTakeawayVariantItem(null);
   };
@@ -233,6 +252,7 @@ export default function BillingScreen({
         name: i.name,
         price: i.price,
         quantity: i.quantity,
+        ...(i.skipKitchen ? { skipKitchen: true } : {}),
       }));
       await createTakeawayOrder(selectedTableId, items);
       // Clear local cart — items now live in Firestore linked to this table

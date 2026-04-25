@@ -186,7 +186,7 @@ export async function createTakeawayOrder(
     orderType: "takeaway",
     items,
     status: "pending",
-    kotPrinted: false,   // ← required so auto-KOT hook detects it
+    kotPrinted: true,   // Suppressed: Client requested no KOTs for takeaway orders
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
